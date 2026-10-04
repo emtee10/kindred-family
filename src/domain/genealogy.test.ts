@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { loadFamily } from "../data/load";
+import { readFileSync } from "node:fs";
 import { Genealogy, displayName, formatDate } from "./genealogy";
 import { kinship } from "./kinship";
 import { confidence, type Person } from "./types";
 import { validateFamily } from "./validation";
 
-const family = loadFamily();
+const family = new Genealogy(validateFamily(
+  JSON.parse(readFileSync("private-data/people.json", "utf8")),
+  JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+));
 const person = (id: string): Person => ({
   id,
   names: [{ given: id, type: "current" }],

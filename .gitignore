@@ -4,3 +4,8 @@ dist/
 *.local
 *.tsbuildinfo
 .DS_Store
+
+!.env.example
+.next/
+playwright-report/
+test-results/

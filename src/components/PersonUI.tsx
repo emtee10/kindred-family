@@ -22,7 +22,7 @@ export function Avatar({
     <span className={`avatar tone-${tone} ${large ? "large" : ""}`}>
       {photo && failed !== photo.file ? (
         <img
-          src={`${import.meta.env.BASE_URL}photos/${photo.file}`}
+          src={`/api/photos/${photo.file.split("/").map(encodeURIComponent).join("/")}`}
           alt={`${displayName(person)}${photo.label ? `, ${photo.label}` : ""}`}
           onError={() => setFailed(photo.file)}
         />
@@ -145,7 +145,7 @@ export function PersonPanel({ person }: { person: Person }) {
             {person.photos.map((photo) => (
               <figure key={photo.file}>
                 <img
-                  src={`${import.meta.env.BASE_URL}photos/${photo.file}`}
+                  src={`/api/photos/${photo.file.split("/").map(encodeURIComponent).join("/")}`}
                   alt={`${name}${photo.label ? `, ${photo.label}` : ""}`}
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
