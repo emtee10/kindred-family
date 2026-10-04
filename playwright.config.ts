@@ -19,6 +19,7 @@ export default defineConfig({
     stdout: "pipe",
     env: {
       FAMILY_PASSWORD: "security-suite-only-password",
+      FAMILY_DATA_PROVIDER: "local",
       AUTH_SECRET: randomBytes(32).toString("base64"),
       NEXT_TELEMETRY_DISABLED: "1",
       NODE_OPTIONS: "--max-old-space-size=768",

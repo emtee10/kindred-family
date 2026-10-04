@@ -10,9 +10,12 @@ Kindred stores people and relationships separately. The JSON describes genealogy
 | `private-data/relationships.json` | Server-only array of relationship records |
 | `private-data/config.ts` | Server-only application title, subtitle, `isDemo` indicator, and featured person IDs |
 | `private-media/` | Private portrait files; never embed images in JSON |
-| `src/server/family-data.ts` | Server-only JSON loading and validation for `/api/family-data` |
-| `src/server/photos.ts` | Server-only photo validation and reading for `/api/photos/[...filename]` |
+| `src/server/family-data.ts` | Server-only provider adapter for `/api/family-data` |
+| `src/server/providers/` | Server-only local/Blob provider selection and validation |
+| `src/server/photos.ts` | Server-only provider adapter for `/api/photos/[...filename]` |
 | `src/data/types.ts` | Shared TypeScript archive types, with no family records |
+
+The file table describes the `local` provider. With `FAMILY_DATA_PROVIDER=blob`, the same people and relationship arrays are stored at the corresponding private Blob pathnames; archive configuration is `private-data/config.json` with the same `title`, `subtitle`, `isDemo`, and `featured` fields. Photos are stored at `private-media/<file>`. No genealogy schema or photo `file` format changes. See [README deployment models](../README.md#deployment) for storage setup.
 
 Neither private directory is directly routable. Both API routes independently require an Auth.js session and return private, non-cacheable responses. Never place family JSON or photographs in `public/`, and never import private records or configuration into Client Components.
 
@@ -155,13 +158,13 @@ Shortest paths traverse all supported relationships in both directions, preservi
 
 ## Photos
 
-Up to three portraits per person, with at most one primary photo. `file` is required: a relative path under `private-media/` with a `.jpg`, `.jpeg`, `.png`, `.webp`, or `.avif` extension. Optional fields: `label` (string), `primary` (boolean), `date` (date object or null). Paths cannot contain `..`, a leading slash, or a remote URL.
+Up to three portraits per person, with at most one primary photo. `file` is required: a relative path under `private-media/` in the local filesystem or Private Blob store with a `.jpg`, `.jpeg`, `.png`, `.webp`, or `.avif` extension. Optional fields: `label` (string), `primary` (boolean), `date` (date object or null). Paths cannot contain `..`, a leading slash, or a remote URL.
 
 ```json
 { "file": "p0012-1965.webp", "label": "1965", "primary": true }
 ```
 
-To add a photo, place the file in `private-media/`, then append its record to the person's `photos` array. Primary photo is used on cards, otherwise the first photo. Missing or failed primary images use initials; profile galleries include captions. Alt text includes the person's name and optional label. Synthetic starter records deliberately contain no photos. The client requests images through the authenticated `/api/photos/[...filename]` route; for example, `portraits/p0012.webp` refers to `private-media/portraits/p0012.webp`. Use nonempty path segments containing letters, digits, underscores, hyphens, or dots, with no segment starting with a dot and no `..` anywhere. The route checks resolved filesystem containment, including symlinks, and returns 404 for missing or invalid files and 401 without authentication. Responses use `Cache-Control: private, no-store`. Rebuild and redeploy after adding photos on Vercel so runtime file tracing includes them.
+To add a photo, place the file in local `private-media/` or upload it to the corresponding Private Blob pathname, then append its record to the person's `photos` array. Primary photo is used on cards, otherwise the first photo. Missing or failed primary images use initials; profile galleries include captions. Alt text includes the person's name and optional label. Synthetic starter records deliberately contain no photos. The client requests images through the authenticated `/api/photos/[...filename]` route; for example, `portraits/p0012.webp` refers to `private-media/portraits/p0012.webp`. Use nonempty path segments containing letters, digits, underscores, hyphens, or dots, with no segment starting with a dot and no `..` anywhere. The local provider checks resolved filesystem containment, including symlinks, while the Blob provider constructs only validated private object paths. The route returns 404 for missing or invalid files and 401 without authentication. Responses use `Cache-Control: private, no-store`. For local files packaged on Vercel, rebuild and redeploy after adding photos so runtime file tracing includes them. Blob photo updates do not require redeployment.
 
 ## Add a person
 
@@ -177,4 +180,4 @@ Minimal example:
 { "id": "p0099", "names": [{ "given": "Ash", "type": "current" }] }
 ```
 
-See the [README](../README.md#deployment) for local secret setup, Vercel and Node.js deployment, private-data replacement, and session rotation. Keep the repository and deployment workspace containing real records private. JSON and media belong in the server deployment, never browser bundles or `public/`. Anyone with the shared password can download the complete dataset; this model does not provide individual authorization.
+See the [README](../README.md#deployment) for local secret setup, Vercel and Node.js deployment, private-data replacement, and session rotation. Keep the repository and deployment workspace containing real records private. JSON and media belong in private server files or a Private Blob store, never browser bundles or `public/`. Anyone with the shared password can download the complete dataset; this model does not provide individual authorization.

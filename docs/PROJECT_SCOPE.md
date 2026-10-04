@@ -61,7 +61,7 @@ Do **not** add the following unless required for a core V1 feature:
 - free-text biographies;
 - maps;
 - GEDCOM import/export;
-- cloud media management;
+- cloud media management or upload interfaces;
 - upload interfaces;
 - arbitrary user-defined event types.
 
@@ -80,14 +80,15 @@ Use:
 - React Flow / `@xyflow/react` for graph rendering
 - ELK / `elkjs` for automatic graph layout where useful
 - client-side exploration state after authenticated server-side data loading
-- server-only JSON files in `private-data/` as the family-data source of truth
+- server-only `FamilyDataProvider` abstraction with local-files and Vercel Private Blob implementations
+- JSON files under `private-data/` locally or at equivalent private Blob pathnames as the family-data source of truth
 - private photographs in `private-media/`, served through authenticated route handlers
 
 Avoid unnecessary dependencies.
 
 The exploration UI and genealogy calculations run client-side after authenticated loading. Authentication and private-file access run on the Next.js server; private records must never be embedded in browser bundles.
 
-No external services should be required to view or navigate family data.
+The default local provider requires no external storage service. The optional Blob provider uses Vercel Private Blob for records, configuration, and media; clients still access only the authenticated application APIs.
 
 ---
 
@@ -95,13 +96,13 @@ No external services should be required to view or navigate family data.
 
 ### Authentication and private-data boundary
 
-Use one shared family password with no user database or individual accounts. `src/auth.ts` configures Auth.js Credentials with a stateless JWT session lasting approximately seven days. Secrets are `FAMILY_PASSWORD` and `AUTH_SECRET`; neither may have a `NEXT_PUBLIC_` prefix. `.env.example` contains empty variable names only. Local values belong in ignored `.env.local`; deployment values belong in the hosting environment.
+Use one shared family password with no user database or individual accounts. `src/auth.ts` configures Auth.js Credentials with a stateless JWT session lasting approximately seven days. Secrets are `FAMILY_PASSWORD` and `AUTH_SECRET`; neither may have a `NEXT_PUBLIC_` prefix. `.env.example` contains empty secret placeholders and selects the local provider by default. Local values belong in ignored `.env.local`; deployment values belong in the hosting environment.
 
 `src/proxy.ts` redirects unauthenticated protected page requests to `/login` and returns 401 for protected API requests. `/login`, `/api/auth/*`, and framework assets needed for authentication remain accessible. The protected root page and both private API routes also verify the Auth.js session independently of Proxy.
 
-`src/server/family-data.ts` is marked `server-only` and reads and validates `private-data/people.json` and `private-data/relationships.json`. `/api/family-data` returns these records and server-only archive configuration only after authentication, with `Cache-Control: private, no-store`. `src/app/FamilyClient.tsx` fetches those records, validates them, and initializes the preserved React app.
+`src/server/family-data.ts` delegates to a server-only `FamilyDataProvider` selected by `FAMILY_DATA_PROVIDER=local|blob` (unset defaults to local; invalid values are rejected). All provider modules import `server-only`. The local implementation reads the existing JSON files and `private-data/config.ts`; the Blob implementation reads private `private-data/people.json`, `private-data/relationships.json`, and `private-data/config.json` objects using the official SDK. Both preserve genealogy validation and the archive response contract. `/api/family-data` returns these records and server-only archive configuration only after authentication, with `Cache-Control: private, no-store`. `src/app/FamilyClient.tsx` fetches those records, validates them, and initializes the preserved React app.
 
-Photos live under `private-media/`, including supported nested relative paths. `/api/photos/[...filename]` independently checks authentication, validates filenames, prevents traversal and symlink escape, returns 404 for missing or invalid files, and uses a private/no-store cache policy. Unauthenticated requests return 401. Never store private JSON or photos in `public/` or import private data into Client Components.
+Photos live under local `private-media/` or the same private Blob prefix, including supported nested relative paths. `/api/photos/[...filename]` independently checks authentication, validates filenames, prevents traversal and local symlink escape, returns 404 for missing or invalid files, and uses a private/no-store cache policy. Unauthenticated requests return 401. Never store private JSON or photos in `public/` or import private data into Client Components.
 
 Anyone with the shared password can download the complete archive. This provides shared-password access without individual authorization. Logout clears the current browser session; stateless tokens have no individual server-side revocation. To respond to a compromised password, change both `FAMILY_PASSWORD` and `AUTH_SECRET` and redeploy all affected environments. Rotating `AUTH_SECRET` invalidates existing sessions on deployments using the new value; changing only the password does not invalidate existing sessions or selectively revoke a family member.
 
@@ -501,7 +502,7 @@ primary
 
 Do not embed binary image data or base64 image data in JSON.
 
-Store photo files separately under `private-media/`. The `file` value is a relative path within that directory and is requested through `/api/photos/[...filename]`. See [the photo guide](DATA_SCHEMA.md#photos) for accepted paths and extensions.
+Store photo files separately under local `private-media/` or the corresponding Private Blob object prefix. The `file` value is a relative path within that directory and is requested through `/api/photos/[...filename]`. See [the photo guide](DATA_SCHEMA.md#photos) for accepted paths and extensions.
 
 Where no photo is available, render a clean fallback avatar using initials or another neutral treatment.
 
@@ -942,7 +943,7 @@ The public project should include only:
 
 Do not include assumptions about a specific real family.
 
-Keep the repository containing real family data private. A private application copy can hold records in `private-data/` and photos in `private-media/`. With separate code and data repositories, assemble those directories in a private deployment workspace before the Next.js build. Set the private archive title, featured IDs, and `isDemo: false` in `private-data/config.ts`. Never copy private files into `public/` or publish private build artifacts.
+Keep the repository containing real family data private. For local-file deployment, a private application copy can hold records in `private-data/` and photos in `private-media/`. With separate code and data repositories, assemble those directories in a private deployment workspace before the Next.js build. Set the private archive title, featured IDs, and `isDemo: false` in `private-data/config.ts`. Never copy private files into `public/` or publish private build artifacts. For Blob deployment, retain only synthetic data in the application repository and store real data/configuration/photos in a Private Blob store; maintain source files and upload credentials in a private workspace.
 
 Document the recommended approach for private deployment.
 
@@ -954,11 +955,11 @@ Do not rely on accidentally ignored sensitive files as the primary long-term pri
 
 Deploy using the Next.js server runtime, on Vercel with its Next.js preset or on a Node.js server. Static-only hosting and static export cannot support the authentication and private-data routes.
 
-Use Node.js 22. For Vercel, set `FAMILY_PASSWORD` and `AUTH_SECRET` in project environment variables for each intended environment, use `npm ci` and `npm run build`, and leave the Output Directory at the framework default. Redeploy after changing secrets or private data. Keep Preview deployments synthetic unless they are intended to hold the private archive.
+Use Node.js 22. For Vercel, set `FAMILY_PASSWORD`, `AUTH_SECRET`, and `FAMILY_DATA_PROVIDER` in project environment variables for each intended environment, use `npm ci` and `npm run build`, and leave the Output Directory at the framework default. Redeploy after changing secrets or private data. Keep Preview deployments synthetic unless they are intended to hold the private archive.
 
-`next.config.ts` includes private JSON and media in the relevant server functions through output file tracing. Both directories must exist in the deployment workspace before building. There is no database or external media service.
+`FAMILY_DATA_PROVIDER=local` retains filesystem loading: `next.config.ts` traces private JSON and media into the relevant server functions, and both directories must exist before building. For `FAMILY_DATA_PROVIDER=blob`, connect a Private Blob store and configure SDK server credentials (Vercel-managed OIDC with `BLOB_STORE_ID`, or `BLOB_READ_WRITE_TOKEN` off Vercel). Use fixed private object pathnames and JSON archive configuration. Reads bypass the Blob content cache and never redirect clients to storage URLs. Blob objects can be updated without rebuilding the app. There is no database or user-account system. See the README for both deployment models.
 
-For a Node.js server, provide private environment values and run from the application root with `private-data/` and `private-media/` available:
+For a Node.js server using `local`, provide private environment values and run from the application root with `private-data/` and `private-media/` available:
 
 ```sh
 npm ci
@@ -1066,6 +1067,7 @@ The current architecture is:
 │   │   ├── family-data.ts
 │   │   ├── password.ts
 │   │   ├── photos.ts
+│   │   ├── providers/          # contract, selection, local/Blob storage, validation, tests
 │   │   └── responses.ts
 │   ├── App.tsx
 │   ├── auth.ts
@@ -1167,7 +1169,7 @@ Verify the privacy boundary:
 - missing and unsafe photo paths return 404 after login;
 - browser JavaScript under `.next/static/` does not embed private dataset values.
 
-Run `npm test` for domain, validation, and route-level authentication tests independent of Proxy. Run `npm run test:security` (or `npm run test:e2e`) for the Playwright HTTP security suite in `tests/security/`. `playwright.config.ts` builds and starts a fresh production server on `127.0.0.1:3107` with test-only credentials, and shuts it down afterward. No browser installation is required. The suite checks each file currently in `private-data/`, alternate and encoded URLs, missing/forged sessions, wrong and correct passwords, session persistence, logout, protected APIs, and browser-bundle leakage. Run against synthetic data with port 3107 free; do not run concurrent build/dev processes in that workspace. Responsive UI behavior still requires browser verification. See [README access checks](../README.md#access-checks-before-sharing-a-deployment) for runnable production checks.
+Run `npm test` for domain, validation, local/Blob providers, selection, and route-level authentication tests independent of Proxy. Blob unit tests mock the SDK and require no live store. Run `npm run test:security` (or `npm run test:e2e`) for the Playwright HTTP security suite in `tests/security/`. `playwright.config.ts` builds and starts a fresh production server on `127.0.0.1:3107` with test-only credentials and the local provider, and shuts it down afterward. No browser installation is required. The suite checks each file currently in `private-data/`, alternate and encoded URLs, missing/forged sessions, wrong and correct passwords, session persistence, logout, protected APIs, and browser-bundle leakage. Run against synthetic data with port 3107 free; do not run concurrent build/dev processes in that workspace. Responsive UI behavior still requires browser verification. See [README access checks](../README.md#access-checks-before-sharing-a-deployment) for runnable production checks.
 
 ---
 
@@ -1252,7 +1254,8 @@ V1 is complete when:
 26. Protected pages and APIs independently enforce authentication, and logout removes current-browser access.
 27. Private JSON and photos remain server-only and cannot be retrieved through direct static-file URLs.
 28. Browser bundles do not embed private records, and protected data/media responses use private/no-store caching.
-29. README documents local secrets, Vercel and Node.js deployment, private-file handling, and compromise response.
+29. README documents local secrets, local-file and Private Blob deployment models, private-file handling, and compromise response.
+30. Both server-only providers preserve the UI, genealogy schema, Auth.js flow, and protected API contracts without exposing storage credentials or URLs to clients.
 
 This checklist defines acceptance criteria; it does not assert that every automated security test or responsive browser verification has already been completed.
 
