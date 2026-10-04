@@ -1039,7 +1039,9 @@ The current architecture is:
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── auth/[...nextauth]/route.ts
-│   │   │   ├── family-data/route.ts
+│   │   │   ├── family-data/
+│   │   │   │   ├── route.ts
+│   │   │   │   └── route.test.ts
 │   │   │   └── photos/[...filename]/route.ts
 │   │   ├── login/
 │   │   │   ├── LoginForm.tsx
@@ -1069,6 +1071,10 @@ The current architecture is:
 │   ├── auth.ts
 │   ├── proxy.ts
 │   └── styles.css
+├── tests/
+│   └── security/
+│       └── private-data.spec.ts
+├── playwright.config.ts
 ├── next.config.ts
 ├── README.md
 ├── package.json
@@ -1161,7 +1167,7 @@ Verify the privacy boundary:
 - missing and unsafe photo paths return 404 after login;
 - browser JavaScript under `.next/static/` does not embed private dataset values.
 
-Add automated authentication and security tests where practical. The current automated suite covers domain and validation behavior; the `test:e2e` script has no Playwright suite or configuration yet. See [README access checks](../README.md#access-checks-before-sharing-a-deployment) for runnable production checks.
+Run `npm test` for domain, validation, and route-level authentication tests independent of Proxy. Run `npm run test:security` (or `npm run test:e2e`) for the Playwright HTTP security suite in `tests/security/`. `playwright.config.ts` builds and starts a fresh production server on `127.0.0.1:3107` with test-only credentials, and shuts it down afterward. No browser installation is required. The suite checks each file currently in `private-data/`, alternate and encoded URLs, missing/forged sessions, wrong and correct passwords, session persistence, logout, protected APIs, and browser-bundle leakage. Run against synthetic data with port 3107 free; do not run concurrent build/dev processes in that workspace. Responsive UI behavior still requires browser verification. See [README access checks](../README.md#access-checks-before-sharing-a-deployment) for runnable production checks.
 
 ---
 

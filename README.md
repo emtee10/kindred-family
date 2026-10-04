@@ -49,13 +49,14 @@ npm run dev
 Open `http://localhost:3000`, enter the shared password at `/login`, and explore the fictional starter archive.
 
 ```sh
-npm test          # existing domain and validation tests
+npm test          # domain, validation, and independent API authentication tests
 npm run typecheck # TypeScript check
 npm run build     # production Next.js build, including TypeScript validation
 npm run start     # serve the production build locally on port 3000
+npm run test:security # build and run production HTTP security tests on port 3107
 ```
 
-Stop the development server before starting the production server on the same port. `npm run preview` is an alias for `npm run start` and also requires a prior production build. The `test:e2e` script is present, but no Playwright test suite or configuration has been added yet.
+Stop the development server before starting the production server on the same port. `npm run preview` is an alias for `npm run start` and also requires a prior production build. `npm run test:security` (also available as `npm run test:e2e`) uses Playwright HTTP requests and requires no browser download. It uses the production Webpack builder with a bounded Node.js heap to fit small dev containers, starts its own server on `127.0.0.1:3107`, overrides local authentication values with a test-only password and a random test secret, and stops the server afterward. Keep that port free. Run it against the synthetic starter dataset in a local or CI workspace; it does not target a deployed archive. It regenerates `.next/`, so avoid running it alongside development/build processes in the same workspace.
 
 ### VS Code Dev Container
 
@@ -139,7 +140,9 @@ Rotating `AUTH_SECRET` invalidates sessions on deployments using the new secret.
 
 ### Access checks before sharing a deployment
 
-Run `npm test`, `npm run typecheck`, and `npm run build`. Start the production server and verify the following while logged out, without following redirects:
+Run `npm test`, `npm run typecheck`, and `npm run test:security`. The security command includes a fresh production build and tests each current `private-data/` file, alternate URLs, protected APIs, missing/forged sessions, invalid passwords, login/session persistence/logout, and browser bundles. Route-level tests in `npm test` also check that unauthenticated calls are rejected before private files are read, independently of Proxy.
+
+For manual deployment checks, run `npm run build` and start the production server. Verify the following while logged out, without following redirects:
 
 ```sh
 curl -i http://localhost:3000/
@@ -152,7 +155,7 @@ curl -i http://localhost:3000/data/people.json
 
 The root should redirect to `/login`; both API requests should return 401; all three direct JSON paths should return 404. Substitute your HTTPS deployment origin for the local origin when checking hosting.
 
-In the browser, verify wrong-password rejection, successful login, refresh with a valid session, all exploration views at desktop/mobile widths, and logout followed by rejected private API requests. Authenticated data and photo responses should have `Cache-Control: private, no-store`; a missing photo should return 404 after login. Inspect `.next/static/` JavaScript for distinctive dataset values to check that records were not embedded in browser bundles. Automated authentication/security and responsive browser tests remain to be added; the existing tests cover domain and validation behavior.
+In the browser, verify wrong-password rejection, successful login, refresh with a valid session, all exploration views at desktop/mobile widths, and logout followed by rejected private API requests. Authenticated data and photo responses should have `Cache-Control: private, no-store`; a missing photo should return 404 after login. Inspect `.next/static/` JavaScript for distinctive dataset values to check that records were not embedded in browser bundles. The automated security suite checks HTTP authentication and file-access behavior; desktop/mobile UI behavior still requires browser verification.
 
 ## Status and limits
 
@@ -162,4 +165,4 @@ No editing, individual accounts, source management, GEDCOM, maps, research integ
 
 ## Contributing
 
-Keep the domain independent of frameworks and rendering, use fictional data in contributions, and update the schema guide whenever records change. Run tests, TypeScript checks, and the production build before submitting a change; verify primary flows at desktop and mobile sizes and preserve authenticated data boundaries. Avoid adding services or infrastructure for features outside [the project scope](docs/PROJECT_SCOPE.md).
+Keep the domain independent of frameworks and rendering, use fictional data in contributions, and update the schema guide whenever records change. Run `npm test`, `npm run typecheck`, and `npm run test:security` before submitting a change; verify primary flows at desktop and mobile sizes and preserve authenticated data boundaries. Avoid adding services or infrastructure for features outside [the project scope](docs/PROJECT_SCOPE.md).
