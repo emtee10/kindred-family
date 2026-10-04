@@ -2,6 +2,8 @@
 
 A calm, read-only family archive built with Next.js App Router, React, and TypeScript. Start with a person, follow their closest connections, discover ancestors and descendants, or trace the relationship between two people. The repository owner maintains the records in ordinary JSON.
 
+**[Start here: simple deployment guide →](docs/QUICK_START.md)**
+
 **[Read the complete data schema and editing guide →](docs/DATA_SCHEMA.md)**
 
 ## What works in V1
