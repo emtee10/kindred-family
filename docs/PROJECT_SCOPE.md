@@ -1,8 +1,10 @@
-# PROJECT_SCOPE.md
+# Kindred project scope
+
+This document describes the existing V1 product and its Next.js authentication and private-data architecture. Preserve the working interface and genealogy logic when making changes. [DATA_SCHEMA.md](DATA_SCHEMA.md) documents the implemented record format; [README.md](../README.md) provides current setup and deployment instructions.
 
 ## Project Overview
 
-Build a responsive, read-only React web application for exploring family-tree information stored in repository-managed JSON files.
+Maintain a responsive, read-only Next.js App Router application with an existing React interface for exploring family-tree information stored in server-only, repository-managed JSON files.
 
 The application is intended primarily as a private family archive and exploration tool. It should make it easy to document family information in a format the repository owner controls, explore relationships visually, identify gaps in known information, and show the family structure to relatives.
 
@@ -35,7 +37,7 @@ The application should:
 7. Display structured biographical facts and major life events.
 8. Support up to 1–3 portrait photos per person, while gracefully handling missing photos.
 9. Represent uncertainty using a qualitative confidence scale.
-10. Be straightforward to deploy as a static site, such as on Vercel.
+10. Be straightforward to deploy on Vercel or a Next.js-compatible Node.js server with authenticated access to private data.
 11. Keep the generic application suitable for public/open-source release while allowing real family data to remain private.
 12. Keep the underlying family-data schema easy for a technically comfortable person to edit manually.
 
@@ -48,7 +50,7 @@ Do **not** add the following unless required for a core V1 feature:
 - in-browser data editing;
 - user accounts;
 - multi-user collaboration;
-- a backend API;
+- backend features beyond authentication and protected, read-only family-data/photo routes;
 - a database server;
 - Ancestry or other genealogy-platform integrations;
 - automated genealogical research;
@@ -73,21 +75,35 @@ Use:
 
 - React
 - TypeScript
-- Vite
+- Next.js App Router with Node.js server execution
+- Auth.js / NextAuth Credentials with a shared password and stateless JWT sessions
 - React Flow / `@xyflow/react` for graph rendering
 - ELK / `elkjs` for automatic graph layout where useful
-- client-side state only
-- JSON files as the family-data source of truth
+- client-side exploration state after authenticated server-side data loading
+- server-only JSON files in `private-data/` as the family-data source of truth
+- private photographs in `private-media/`, served through authenticated route handlers
 
 Avoid unnecessary dependencies.
 
-The entire V1 must run client-side after build.
+The exploration UI and genealogy calculations run client-side after authenticated loading. Authentication and private-file access run on the Next.js server; private records must never be embedded in browser bundles.
 
 No external services should be required to view or navigate family data.
 
 ---
 
 ## Architectural Principles
+
+### Authentication and private-data boundary
+
+Use one shared family password with no user database or individual accounts. `src/auth.ts` configures Auth.js Credentials with a stateless JWT session lasting approximately seven days. Secrets are `FAMILY_PASSWORD` and `AUTH_SECRET`; neither may have a `NEXT_PUBLIC_` prefix. `.env.example` contains empty variable names only. Local values belong in ignored `.env.local`; deployment values belong in the hosting environment.
+
+`src/proxy.ts` redirects unauthenticated protected page requests to `/login` and returns 401 for protected API requests. `/login`, `/api/auth/*`, and framework assets needed for authentication remain accessible. The protected root page and both private API routes also verify the Auth.js session independently of Proxy.
+
+`src/server/family-data.ts` is marked `server-only` and reads and validates `private-data/people.json` and `private-data/relationships.json`. `/api/family-data` returns these records and server-only archive configuration only after authentication, with `Cache-Control: private, no-store`. `src/app/FamilyClient.tsx` fetches those records, validates them, and initializes the preserved React app.
+
+Photos live under `private-media/`, including supported nested relative paths. `/api/photos/[...filename]` independently checks authentication, validates filenames, prevents traversal and symlink escape, returns 404 for missing or invalid files, and uses a private/no-store cache policy. Unauthenticated requests return 401. Never store private JSON or photos in `public/` or import private data into Client Components.
+
+Anyone with the shared password can download the complete archive. This provides shared-password access without individual authorization. Logout clears the current browser session; stateless tokens have no individual server-side revocation. To respond to a compromised password, change both `FAMILY_PASSWORD` and `AUTH_SECRET` and redeploy all affected environments. Rotating `AUTH_SECRET` invalidates existing sessions on deployments using the new value; changing only the password does not invalidate existing sessions or selectively revoke a family member.
 
 ### 1. Separate genealogy data from visualization data
 
@@ -96,10 +112,13 @@ The family-data model must **not** use React Flow node/edge objects as its persi
 Create a clear transformation layer:
 
 ```text
-Family JSON
+Server-only family JSON
     |
     v
-Genealogy/domain model
+Authenticated /api/family-data (server validation)
+    |
+    v
+Genealogy/domain model (client validation)
     |
     +--> Immediate-family graph
     +--> Ancestor graph
@@ -158,7 +177,7 @@ Avoid structures that require the maintainer to understand implementation detail
 
 # Data Model
 
-The exact TypeScript implementation may evolve, but V1 should conform to the following conceptual schema.
+The genealogy schema is unchanged by authentication. The following describes the product requirements; use [DATA_SCHEMA.md](DATA_SCHEMA.md) for the complete implemented format.
 
 The implemented schema must be:
 
@@ -279,7 +298,7 @@ The implementation should preserve date-only values without timezone-related shi
 
 ## Places
 
-Places may be represented as plain strings in V1.
+Places are objects with a required nonempty `value` string and optional `confidence`, as in the example below.
 
 Example:
 
@@ -482,7 +501,7 @@ primary
 
 Do not embed binary image data or base64 image data in JSON.
 
-Store photo files separately.
+Store photo files separately under `private-media/`. The `file` value is a relative path within that directory and is requested through `/api/photos/[...filename]`. See [the photo guide](DATA_SCHEMA.md#photos) for accepted paths and extensions.
 
 Where no photo is available, render a clean fallback avatar using initials or another neutral treatment.
 
@@ -494,35 +513,19 @@ Do not require photos in the synthetic starter dataset.
 
 Relationships are first-class records stored independently from people.
 
-Suggested structure:
-
-```json
-{
-  "id": "r0037",
-  "person1": "p0012",
-  "person2": "p0041",
-  "type": "biological_parent",
-  "confidence": "confirmed"
-}
-```
-
-The implementation may choose clearer directional field names for parent relationships if this reduces ambiguity, for example:
+Implemented structure:
 
 ```json
 {
   "id": "r0037",
   "from": "p0041",
   "to": "p0012",
-  "type": "biological_parent"
+  "type": "biological_parent",
+  "confidence": "confirmed"
 }
 ```
 
-Whichever approach is selected must be:
-
-- unambiguous;
-- consistent;
-- documented;
-- easy to edit manually.
+For parent/guardian relationships, `from` is the parent or guardian and `to` is the child or ward. Spouse and partner records are symmetric. Both endpoints reference existing person IDs. See [the schema guide](DATA_SCHEMA.md#relationships) for validation and traversal details.
 
 ## V1 Relationship Types
 
@@ -795,14 +798,14 @@ initially <100 people
 future: a few hundred people
 ```
 
-Load the complete family dataset into memory at startup.
+Load the complete family dataset into client memory after login through one authenticated `/api/family-data` request. Keep search, relationship queries, and graph calculations in the browser.
 
 Do not add:
 
 - pagination;
 - server-side graph queries;
 - database indexing;
-- lazy network retrieval;
+- per-person or per-graph network retrieval;
 - backend caching.
 
 Graph operations on this scale should be client-side.
@@ -813,7 +816,7 @@ Avoid unnecessary React rerenders, particularly around React Flow.
 
 # Runtime Validation
 
-Validate family data at startup.
+Validate family data on the server for each authenticated family-data load and again on the client before rendering. The production build alone does not validate replacement JSON.
 
 Validation should catch at least:
 
@@ -832,7 +835,8 @@ Validation should catch at least:
 If validation fails:
 
 - do not crash with an opaque error;
-- provide a clear developer-facing message identifying the relevant record and problem.
+- provide an authenticated error view identifying the relevant record and problem;
+- keep validation details behind the session boundary.
 
 Consider using a lightweight schema-validation library if helpful, but do not add unnecessary complexity.
 
@@ -913,7 +917,7 @@ The synthetic family should deliberately include:
 
 Use obviously fictional names and plausible but invented details.
 
-The starter dataset should make the app useful immediately after cloning and starting the development server.
+The starter dataset should make the app useful immediately after cloning, supplying local environment secrets, starting the development server, and signing in.
 
 ---
 
@@ -938,7 +942,7 @@ The public project should include only:
 
 Do not include assumptions about a specific real family.
 
-If implementing the two-repository pattern fully would overcomplicate V1, structure the data-loading layer so that it can be swapped later without major UI changes.
+Keep the repository containing real family data private. A private application copy can hold records in `private-data/` and photos in `private-media/`. With separate code and data repositories, assemble those directories in a private deployment workspace before the Next.js build. Set the private archive title, featured IDs, and `isDemo: false` in `private-data/config.ts`. Never copy private files into `public/` or publish private build artifacts.
 
 Document the recommended approach for private deployment.
 
@@ -948,25 +952,25 @@ Do not rely on accidentally ignored sensitive files as the primary long-term pri
 
 # Deployment
 
-The app should build as a static client-side site suitable for:
+Deploy using the Next.js server runtime, on Vercel with its Next.js preset or on a Node.js server. Static-only hosting and static export cannot support the authentication and private-data routes.
 
-- Vercel;
-- Netlify;
-- Cloudflare Pages;
-- equivalent static hosting.
+Use Node.js 22. For Vercel, set `FAMILY_PASSWORD` and `AUTH_SECRET` in project environment variables for each intended environment, use `npm ci` and `npm run build`, and leave the Output Directory at the framework default. Redeploy after changing secrets or private data. Keep Preview deployments synthetic unless they are intended to hold the private archive.
 
-Do not require a server process after build.
+`next.config.ts` includes private JSON and media in the relevant server functions through output file tracing. Both directories must exist in the deployment workspace before building. There is no database or external media service.
 
-Document:
+For a Node.js server, provide private environment values and run from the application root with `private-data/` and `private-media/` available:
 
-```text
-npm install
-npm run dev
+```sh
+npm ci
+npm test
+npm run typecheck
 npm run build
-npm run preview
+npm run start
 ```
 
-and any deployment-specific considerations.
+Run synthetic-data tests before replacing the starter files with private records. `npm run dev` starts local development on port 3000; `npm run preview` is an alias for `npm run start` and requires a build. Use HTTPS in production. Keep private directories inaccessible to static-file serving and disable public caching of authenticated data and media.
+
+See [README deployment instructions](../README.md#deployment) for Vercel configuration, Node.js hosting, secret generation and rotation, and production access checks.
 
 ---
 
@@ -974,7 +978,7 @@ and any deployment-specific considerations.
 
 Include an appropriate VS Code Dev Container configuration.
 
-Use a standard Node.js development container suitable for React/Vite/TypeScript development.
+Use a standard Node.js development container suitable for Next.js/React/TypeScript development.
 
 Recommended baseline:
 
@@ -1003,8 +1007,8 @@ The container should:
 
 - support `npm`;
 - install project dependencies after container creation if appropriate;
-- expose or forward the Vite development port;
-- work in VS Code Dev Containers without additional manual setup;
+- expose or forward the Next.js development port, 3000;
+- work in VS Code Dev Containers after the owner supplies `.env.local`;
 - avoid unnecessary features and packages.
 
 Do not create a heavyweight Docker setup when a standard devcontainer image is sufficient.
@@ -1013,52 +1017,67 @@ Document Dev Container usage briefly in the README.
 
 ---
 
-# Suggested Repository Structure
+# Repository Structure
 
-A reasonable starting structure is:
+The current architecture is:
 
 ```text
 .
 ├── .devcontainer/
 │   └── devcontainer.json
+├── .env.example
 ├── docs/
-│   └── DATA_SCHEMA.md
-├── public/
-│   └── photos/
+│   ├── DATA_SCHEMA.md
+│   └── PROJECT_SCOPE.md
+├── private-data/
+│   ├── config.ts
+│   ├── people.json
+│   └── relationships.json
+├── private-media/
+├── public/                    # non-sensitive assets only
 ├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/route.ts
+│   │   │   ├── family-data/route.ts
+│   │   │   └── photos/[...filename]/route.ts
+│   │   ├── login/
+│   │   │   ├── LoginForm.tsx
+│   │   │   └── page.tsx
+│   │   ├── FamilyClient.tsx
+│   │   ├── layout.tsx
+│   │   └── page.tsx
 │   ├── components/
-│   │   ├── FamilyGraph/
-│   │   ├── PersonNode/
-│   │   ├── PersonPanel/
-│   │   ├── PersonSearch/
-│   │   └── RelationshipPath/
+│   │   ├── FamilyGraph.tsx
+│   │   ├── Icons.tsx
+│   │   ├── PersonSearch.tsx
+│   │   └── PersonUI.tsx
 │   ├── data/
-│   │   ├── people.json
-│   │   └── relationships.json
+│   │   └── types.ts
 │   ├── domain/
-│   │   ├── types.ts
-│   │   ├── validation.ts
+│   │   ├── genealogy.test.ts
 │   │   ├── genealogy.ts
-│   │   ├── relationships.ts
-│   │   └── kinship.ts
-│   ├── views/
-│   │   ├── HomeView/
-│   │   ├── ImmediateFamilyView/
-│   │   ├── AncestorView/
-│   │   ├── DescendantView/
-│   │   └── RelationshipView/
-│   └── ...
+│   │   ├── kinship.ts
+│   │   ├── types.ts
+│   │   └── validation.ts
+│   ├── server/
+│   │   ├── family-data.ts
+│   │   ├── password.ts
+│   │   ├── photos.ts
+│   │   └── responses.ts
+│   ├── App.tsx
+│   ├── auth.ts
+│   ├── proxy.ts
+│   └── styles.css
+├── next.config.ts
 ├── README.md
-├── PROJECT_SCOPE.md
 ├── package.json
-└── ...
+├── package-lock.json
+├── tsconfig.json
+└── vitest.config.ts
 ```
 
-This structure is guidance, not a rigid requirement.
-
-Prefer clear organization over preserving this exact tree.
-
-If events are stored in a separate `events.json` file rather than nested under people, document that decision clearly.
+Events remain nested under people. No family records belong under `src/data/` or `public/`. `.next/` is generated build output and must not be published as a public archive or treated as a static-only deployment.
 
 ---
 
@@ -1129,7 +1148,20 @@ At minimum test:
 - basic kinship labels;
 - behavior when a conventional kinship label cannot confidently be produced.
 
-Also run the application manually and verify responsive behavior at representative desktop and mobile widths.
+Also run the production-style application manually and verify responsive behavior at representative desktop and mobile widths after login.
+
+Verify the privacy boundary:
+
+- logged-out root requests redirect to `/login`;
+- `/api/family-data` and `/api/photos/example.jpg` return 401 while logged out;
+- likely direct file paths, including `/private-data/people.json`, `/people.json`, and `/data/people.json`, return 404;
+- wrong passwords fail and correct passwords establish sessions;
+- refresh preserves a valid session, and logout removes current-browser access to protected APIs;
+- authenticated private data and media use `Cache-Control: private, no-store`;
+- missing and unsafe photo paths return 404 after login;
+- browser JavaScript under `.next/static/` does not embed private dataset values.
+
+Add automated authentication and security tests where practical. The current automated suite covers domain and validation behavior; the `test:e2e` script has no Playwright suite or configuration yet. See [README access checks](../README.md#access-checks-before-sharing-a-deployment) for runnable production checks.
 
 ---
 
@@ -1143,14 +1175,14 @@ It should include:
 - why it exists;
 - screenshots or placeholders may be added later;
 - main features;
-- local development instructions;
+- local development instructions, including `.env.local` and generation of `AUTH_SECRET`;
 - Dev Container instructions;
 - build instructions;
-- deployment overview;
+- Vercel and Node.js deployment instructions, including environment variables and runtime private-file packaging;
 - data-file overview;
 - prominent link to full schema documentation;
 - explanation of synthetic starter data;
-- explanation of how private family data should be kept separate;
+- explanation of server-only private data and photos, the shared-password security model, and secret rotation;
 - project status / V1 limitations;
 - open-source contribution guidance as appropriate.
 
@@ -1188,7 +1220,7 @@ V1 is complete when:
 
 1. The project builds successfully.
 2. It runs locally in the provided Dev Container.
-3. Synthetic starter data loads without errors.
+3. Synthetic starter data loads without errors after shared-password login.
 4. The home screen is usable and responsive.
 5. A person can be searched and selected.
 6. Immediate-family visualization works.
@@ -1208,22 +1240,29 @@ V1 is complete when:
 20. `README.md` is complete.
 21. The implemented data schema is fully documented in README and/or `docs/DATA_SCHEMA.md`.
 22. `.devcontainer/devcontainer.json` is included and functional.
-23. No backend or unnecessary service dependency has been added.
+23. Server functionality is limited to authentication and protected file access; no database, user-account system, or unnecessary service is added.
 24. No real family information is included in the public starter project.
+25. Auth.js Credentials uses a shared password, private environment secrets, and approximately seven-day stateless sessions.
+26. Protected pages and APIs independently enforce authentication, and logout removes current-browser access.
+27. Private JSON and photos remain server-only and cannot be retrieved through direct static-file URLs.
+28. Browser bundles do not embed private records, and protected data/media responses use private/no-store caching.
+29. README documents local secrets, Vercel and Node.js deployment, private-file handling, and compromise response.
+
+This checklist defines acceptance criteria; it does not assert that every automated security test or responsive browser verification has already been completed.
 
 ---
 
-# Codex Task
+# Maintenance Guidance
 
-Build the complete V1 described in this file.
+Maintain the existing V1 described in this file. Preserve the working application when adapting its infrastructure; do not rebuild or redesign it.
 
-Treat this document as the source of truth for product scope.
+Use this document for product scope and [DATA_SCHEMA.md](DATA_SCHEMA.md) for the implemented schema.
 
 Use reasonable implementation judgment where a low-level detail is not specified, but do not expand the product beyond the stated scope.
 
 In particular:
 
-- create the React/Vite/TypeScript application;
+- retain the Next.js App Router architecture and existing React/TypeScript application;
 - implement the genealogy domain layer separately from React Flow rendering;
 - define and validate the JSON schemas;
 - document every implemented schema clearly in `README.md` and/or `docs/DATA_SCHEMA.md`;
@@ -1237,10 +1276,10 @@ In particular:
 - run the tests;
 - run the production build;
 - fix issues found during testing;
-- keep the application entirely client-side;
+- keep genealogy calculations client-side after authenticated loading, with server-only private data and media boundaries;
 - do not add services or dependencies that are not necessary.
 
-When implementation is complete, provide a concise summary of:
+When reporting meaningful changes, provide a concise summary of:
 
 1. what was built;
 2. important architectural decisions;
