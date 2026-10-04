@@ -387,7 +387,10 @@ export default function App({ family }: { family: Genealogy }) {
                 To
                 <select
                   value={target}
-                  onChange={(e) => setTarget(e.target.value)}
+                  onChange={(e) => {
+                    setTarget(e.target.value);
+                    setSelected(e.target.value);
+                  }}
                 >
                   {family.search("").map((p) => (
                     <option value={p.id} key={p.id}>
@@ -452,6 +455,7 @@ export default function App({ family }: { family: Genealogy }) {
                 <FamilyGraph
                   family={family}
                   root={root}
+                  selected={selected}
                   target={target}
                   view={view}
                   generations={generations}

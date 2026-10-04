@@ -53,7 +53,7 @@ See [the schema guide](docs/DATA_SCHEMA.md) for every field, editing examples, a
 
 ## Keep private family data separate
 
-The recommended setup is a public `family-tree-app` repository and a separate private `my-family` repository holding your people, relationships, configuration, and photos. Do not commit real family records or media to the public application repository.
+The recommended setup is a public `kindred-family` repository and a separate private `my-kindred-family` repository holding your people, relationships, configuration, and photos. Do not commit real family records or media to the public application repository.
 
 Use a private build workspace/deployment project that checks out both repositories. Before building, copy the private JSON files into the application's `src/data/` directory and private photos into `public/photos/`, replacing the demonstration files **only in that private workspace**. Alternatively, change the two imports in `src/data/load.ts` to build-time files supplied by that workspace. Update the featured IDs/title in `src/data/config.ts` and set `isDemo` to `false`. The app falls back to available people if the demonstration IDs are absent. Never push the resulting workspace or bundle to the public source repository.
 

@@ -1144,6 +1144,7 @@ select {
 .portraits figcaption {
   font-size: 9px;
   color: #7a876f;
+  text-align: center;
 }
 .data-error {
   max-width: 800px;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -8,9 +8,8 @@ import {
   type Node,
   type Edge,
   type NodeProps,
+  type Viewport,
   MarkerType,
-  useReactFlow,
-  useNodesInitialized,
 } from "@xyflow/react";
 import {
   Genealogy,
@@ -62,41 +61,10 @@ function PersonNode({ data }: NodeProps<FamilyNode>) {
 }
 const nodeTypes = { person: PersonNode };
 
-function InitialViewport({
-  root,
-  container,
-}: {
-  root: string;
-  container: RefObject<HTMLDivElement | null>;
-}) {
-  const initialized = useNodesInitialized();
-  const { getNode, setCenter, fitView } = useReactFlow();
-  useEffect(() => {
-    if (!initialized) return;
-    let cancelled = false;
-    void fitView({ padding: 0.15, minZoom: 0.65, maxZoom: 1 }).then(() => {
-      if (
-        cancelled ||
-        !container.current ||
-        container.current.clientWidth >= 600
-      )
-        return;
-      const node = getNode(root);
-      if (node)
-        void setCenter(node.position.x + 95, node.position.y + 47.5, {
-          zoom: 0.95,
-        });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [initialized, root, container, getNode, setCenter, fitView]);
-  return null;
-}
-
 export function FamilyGraph({
   family,
   root,
+  selected,
   view,
   generations,
   target,
@@ -104,6 +72,7 @@ export function FamilyGraph({
 }: {
   family: Genealogy;
   root: string;
+  selected: string;
   view: View;
   generations: number;
   target: string;
@@ -112,7 +81,13 @@ export function FamilyGraph({
   const container = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<FamilyNode[]>([]),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(true);
+    [busy, setBusy] = useState(true),
+    [viewport, setViewport] = useState<Viewport>({
+      x: 0,
+      y: 0,
+      zoom: 0.95,
+    });
+  const centeredRoot = useRef<string | undefined>(undefined);
   const path = useMemo(
     () => (view === "path" ? family.path(root, target) : null),
     [family, view, root, target],
@@ -280,6 +255,25 @@ export function FamilyGraph({
       cancelled = true;
     };
   }, [family, root, view, ids, edges, onSelect]);
+  useLayoutEffect(() => {
+    const canvas = container.current;
+    const node = nodes.find(({ id }) => id === selected) ??
+      nodes.find(({ id }) => id === root);
+    if (busy || !canvas || !node) return;
+
+    const rootChanged = centeredRoot.current !== root;
+    centeredRoot.current = root;
+    setViewport((current) => {
+      const zoom = rootChanged ? 0.95 : current.zoom;
+      const nodeWidth = node.measured?.width ?? node.width ?? 190;
+      const nodeHeight = node.measured?.height ?? node.height ?? 95;
+      return {
+        x: canvas.clientWidth / 2 - (node.position.x + nodeWidth / 2) * zoom,
+        y: canvas.clientHeight / 2 - (node.position.y + nodeHeight / 2) * zoom,
+        zoom,
+      };
+    });
+  }, [busy, nodes, root, selected]);
   if (error)
     return (
       <div className="graph-message" role="alert">
@@ -310,10 +304,11 @@ export function FamilyGraph({
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          viewport={viewport}
+          onViewportChange={setViewport}
           onNodeClick={(_, node) => onSelect(node.id)}
           proOptions={{ hideAttribution: true }}
         >
-          <InitialViewport root={root} container={container} />
           <Background color="#dce2d8" gap={22} size={1} />
           <Controls showInteractive={false} />
         </ReactFlow>
