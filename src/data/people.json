@@ -1,0 +1,273 @@
+[
+  {
+    "id": "ada",
+    "names": [{ "given": "Ada", "surname": "Willowmere", "type": "current" }],
+    "sex": "female",
+    "birth": {
+      "date": {
+        "value": "1920",
+        "qualifier": "about",
+        "confidence": "probable"
+      },
+      "place": { "value": "Briar Hollow", "confidence": "possible" }
+    },
+    "death": { "date": { "value": "2001-04-12" } },
+    "events": [
+      {
+        "type": "immigration",
+        "date": { "value": "1947" },
+        "place": { "value": "Fernhaven" }
+      }
+    ]
+  },
+  {
+    "id": "edwin",
+    "names": [{ "given": "Edwin", "surname": "Willowmere", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1918-03-09" } },
+    "death": { "date": { "value": "1994" } },
+    "events": [{ "type": "occupation", "label": "Cabinet maker" }]
+  },
+  {
+    "id": "iris",
+    "names": [{ "given": "Iris", "surname": "Mossvale", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "1924" } },
+    "death": { "date": { "value": "2008" } }
+  },
+  {
+    "id": "felix",
+    "names": [{ "given": "Felix", "surname": "Mossvale", "type": "current" }],
+    "sex": "male",
+    "birth": {
+      "date": { "start": "1920", "end": "1922", "qualifier": "range" }
+    },
+    "death": { "date": { "value": "1989" } }
+  },
+  {
+    "id": "rowan",
+    "names": [{ "given": "Rowan", "surname": "Willowmere", "type": "current" }],
+    "sex": "male",
+    "birth": {
+      "date": { "value": "1948-06-22" },
+      "place": { "value": "Fernhaven" }
+    },
+    "events": [
+      {
+        "type": "marriage",
+        "date": { "value": "1971-08" },
+        "place": { "value": "Fernhaven" }
+      },
+      {
+        "type": "occupation",
+        "label": "School teacher",
+        "date": { "value": "1973" }
+      }
+    ]
+  },
+  {
+    "id": "hazel",
+    "names": [
+      { "given": "Hazel", "surname": "Willowmere", "type": "current" },
+      { "given": "Hazel", "surname": "Mossvale", "type": "birth" }
+    ],
+    "sex": "female",
+    "birth": {
+      "date": { "value": "1950-11-03" },
+      "place": { "value": "Fernhaven" }
+    },
+    "events": [
+      {
+        "type": "education",
+        "label": "Diploma in horticulture",
+        "date": { "value": "1970" }
+      },
+      {
+        "type": "residence",
+        "date": { "start": "1972", "end": "1988", "qualifier": "range" },
+        "place": { "value": "Willow Quay" }
+      }
+    ]
+  },
+  {
+    "id": "theo",
+    "names": [{ "given": "Theo", "surname": "Willowmere", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1952" } },
+    "events": [
+      { "type": "marriage", "date": { "value": "1974" } },
+      { "type": "divorce", "date": { "value": "1986" } },
+      { "type": "marriage", "date": { "value": "1989" } }
+    ]
+  },
+  {
+    "id": "celia",
+    "names": [{ "given": "Celia", "surname": "Bracken", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "1954" } }
+  },
+  {
+    "id": "sylvie",
+    "names": [{ "given": "Sylvie", "surname": "Reedbrook", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "1958-02" } }
+  },
+  {
+    "id": "juniper",
+    "names": [
+      { "given": "Juniper", "surname": "Mossvale", "type": "current" },
+      { "given": "June", "type": "nickname" }
+    ],
+    "sex": "female",
+    "birth": { "date": { "value": "1956" } }
+  },
+  {
+    "id": "owen",
+    "names": [{ "given": "Owen", "surname": "Alderwick", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1955" } }
+  },
+  {
+    "id": "elara",
+    "names": [
+      { "given": "Elara", "surname": "Willowmere", "type": "current" },
+      { "given": "Ellie", "surname": "Willowmere", "type": "nickname" }
+    ],
+    "sex": "female",
+    "birth": {
+      "date": { "value": "1975-05-18" },
+      "place": { "value": "Willow Quay" }
+    },
+    "events": [
+      {
+        "type": "education",
+        "label": "Architecture degree",
+        "date": { "value": "1997" }
+      },
+      {
+        "type": "occupation",
+        "label": "Architect",
+        "date": { "value": "2000" }
+      },
+      {
+        "type": "residence",
+        "date": { "value": "2012" },
+        "place": { "value": "Fernhaven" }
+      }
+    ]
+  },
+  {
+    "id": "milo",
+    "names": [{ "given": "Milo", "surname": "Willowmere", "type": "current" }],
+    "sex": "male",
+    "birth": {
+      "date": { "value": "1978-09-02" },
+      "place": { "value": "Willow Quay" }
+    }
+  },
+  {
+    "id": "finn",
+    "names": [{ "given": "Finn", "surname": "Willowmere", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1976" } }
+  },
+  {
+    "id": "wren",
+    "names": [
+      { "given": "Wren", "surname": "Willowmere", "type": "current" },
+      { "given": "Wren", "surname": "Bracken", "type": "birth" }
+    ],
+    "sex": "other",
+    "birth": { "date": { "value": "1980" } }
+  },
+  {
+    "id": "lark",
+    "names": [{ "given": "Lark", "surname": "Willowmere", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "1991" } }
+  },
+  {
+    "id": "ivy",
+    "names": [{ "given": "Ivy", "surname": "Alderwick", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "1981" } }
+  },
+  {
+    "id": "jasper",
+    "names": [{ "given": "Jasper", "surname": "Alderwick", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1984" } }
+  },
+  {
+    "id": "arden",
+    "names": [{ "given": "Arden", "surname": "Foxglade", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "1974" } },
+    "events": [
+      { "type": "marriage", "date": { "value": "2000-07-15" } },
+      { "type": "occupation", "label": "Illustrator" }
+    ]
+  },
+  {
+    "id": "sage",
+    "names": [{ "given": "Sage", "surname": "Fernley", "type": "current" }],
+    "sex": "other",
+    "birth": { "date": { "value": "1980" } }
+  },
+  {
+    "id": "piper",
+    "names": [{ "given": "Piper", "surname": "Foxglade", "type": "current" }],
+    "sex": "female",
+    "birth": {
+      "date": { "value": "2003-03-14" },
+      "place": { "value": "Fernhaven" }
+    },
+    "events": [
+      {
+        "type": "education",
+        "label": "Environmental science",
+        "date": { "value": "2021", "qualifier": "after" }
+      }
+    ]
+  },
+  {
+    "id": "kit",
+    "names": [{ "given": "Kit", "surname": "Foxglade", "type": "current" }],
+    "sex": "male",
+    "birth": { "date": { "value": "2006-10-08" } }
+  },
+  {
+    "id": "robin",
+    "names": [{ "given": "Robin", "surname": "Fernley", "type": "current" }],
+    "birth": {
+      "date": {
+        "value": "2010",
+        "qualifier": "about",
+        "confidence": "possible"
+      }
+    }
+  },
+  {
+    "id": "clover",
+    "names": [{ "given": "Clover", "surname": "Bracken", "type": "current" }],
+    "sex": "female",
+    "birth": { "date": { "value": "2005" } }
+  },
+  {
+    "id": "ash",
+    "names": [{ "given": "Ash", "surname": "Cloudfen", "type": "current" }]
+  },
+  {
+    "id": "orin",
+    "names": [{ "given": "Orin", "surname": "Cloudfen", "type": "current" }],
+    "sex": "male",
+    "birth": {
+      "date": {
+        "value": "1895",
+        "qualifier": "before",
+        "confidence": "speculative"
+      }
+    },
+    "death": {}
+  }
+]
