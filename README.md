@@ -121,7 +121,7 @@ Next.js supports this [Node.js server deployment workflow](https://nextjs.org/do
 ### Vercel project setup
 
 1. Import the deployment repository into a Vercel project. Keep any repository containing real files private; Blob deployments can retain only synthetic files in the application repository.
-2. Select **Next.js**, **Node.js 22.x**, install with `npm ci`, and build with `npm run build`. Leave the Output Directory at the framework default.
+2. Select **Next.js**, **Node.js 22.x**, install with `npm ci`, and build with `npm run build`. The checked-in `vercel.json` selects Next.js and its `.next` output directory, overriding any older `dist` setting. Disable any Output Directory override in the dashboard to keep its settings consistent with the repository.
 3. Set `FAMILY_PASSWORD`, `AUTH_SECRET`, and `FAMILY_DATA_PROVIDER` in **Settings → Environment Variables** for each intended environment. Restrict private archive access to intended Production/Preview deployments.
 4. Configure one storage model below, then deploy over HTTPS. Environment or code changes require redeployment.
 5. Run the access checks below against the deployment. Check an actual protected photograph if media is present.

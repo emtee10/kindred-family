@@ -80,7 +80,7 @@ For a photo at `private-media/portraits/p0012.webp`, its entry in the person's J
 
 1. Sign in to Vercel. Choose **Add New → Project**.
 2. Connect GitHub if asked, allow Vercel to access your private repository, and select **Import** beside `my-kindred-family`.
-3. Use **Next.js** as the framework. The application folder containing `package.json` is the project root. Keep the default output setting. If asked for commands, use `npm ci` to install and `npm run build` to build.
+3. Use **Next.js** as the framework. The application folder containing `package.json` and `vercel.json` is the project root. The included `vercel.json` sets the build output to `.next`. Disable any Output Directory override in Vercel's build settings, especially an older `dist` value. If asked for commands, use `npm ci` to install and `npm run build` to build.
 4. Add the three environment variables above, using `FAMILY_DATA_PROVIDER=local`. Choose **Production** for the live website. Enable **Preview** only if you want additional test websites to access this archive too.
 5. Click **Deploy**. In project settings, use Node.js **22.x**. If you change settings after the first deployment, open **Deployments**, choose the latest deployment, and use **Redeploy**.
 6. When Vercel reports **Ready**, open the website address and enter the family password.
@@ -210,6 +210,7 @@ If you suspect the password was shared improperly, change both `FAMILY_PASSWORD`
 
 | What you see | What to check |
 | --- | --- |
+| Build finishes, but Vercel says no Output Directory named `dist` exists | Deploy the version containing `vercel.json`; use the Next.js framework and disable the Output Directory override in project build settings, then redeploy |
 | Login never works | The correct password and `AUTH_SECRET` are saved for the live environment; redeploy after changing them |
 | Login works, but the archive has an error | The selected storage option matches your setup; all required JSON files exist and follow the data guide |
 | Blob archive cannot load | The store is Private, connected to the right project/environment, and has the three exact object names |
