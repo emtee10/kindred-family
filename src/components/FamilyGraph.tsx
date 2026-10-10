@@ -18,6 +18,7 @@ import {
   edgeLabel,
 } from "../domain/genealogy";
 import { isParent, confidence, type Person } from "../domain/types";
+import { layoutFamily } from "../domain/family-layout";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
 import "@xyflow/react/dist/style.css";
 
@@ -204,26 +205,8 @@ export function FamilyGraph({
     }));
     const layout = async () => {
       if (view === "family" || view === "extended") {
-        const levels = [...new Set(familyRows.values())].sort((a, b) => a - b);
-        const rows = levels.map((level) =>
-          people.filter((id) => familyRows.get(id) === level),
-        );
-        const rootRow = levels.indexOf(0);
-        const middle = rows[rootRow].filter((id) => id !== root),
-          center = Math.floor(middle.length / 2);
-        middle.splice(center, 0, root);
-        rows[rootRow] = middle;
-        return base.map((node) => {
-          const row = rows.findIndex((r) => r.includes(node.id));
-          return {
-            ...node,
-            position: {
-              x:
-                (rows[row].indexOf(node.id) - (rows[row].length - 1) / 2) * 235,
-              y: levels[row] * 210,
-            },
-          };
-        });
+        const positions = layoutFamily(family, root, familyRows);
+        return base.map((node) => ({ ...node, position: positions.get(node.id)! }));
       }
       const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
       const graph = await new ELK().layout({
