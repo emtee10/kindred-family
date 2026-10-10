@@ -128,14 +128,35 @@ export class Genealogy {
     }
     return result;
   }
+  familyMembers(id: string, extended = false): Map<string, number> {
+    // Direct relatives take precedence when someone has multiple recorded roles.
+    // Row offsets keep parents above children and partners/siblings together.
+    const result = new Map([[id, 0]]);
+    const add = (ids: string[], row: number) => {
+      for (const relative of ids) {
+        if (!result.has(relative)) result.set(relative, row);
+      }
+    };
+    const parents = this.parents(id);
+    const children = this.children(id);
+    const siblings = this.siblings(id).map((s) => s.id);
+    add(parents, -1);
+    add(children, 1);
+    add(this.partners(id), 0);
+    add(siblings, 0);
+    if (extended) {
+      add(parents.flatMap((parent) => this.parents(parent)), -2);
+      add(children.flatMap((child) => this.children(child)), 2);
+      add(parents.flatMap((parent) => this.siblings(parent).map((s) => s.id)), -1);
+      add(siblings.flatMap((sibling) => this.children(sibling)), 1);
+    }
+    return result;
+  }
   immediate(id: string) {
-    return new Set([
-      id,
-      ...this.parents(id),
-      ...this.children(id),
-      ...this.partners(id),
-      ...this.siblings(id).map((s) => s.id),
-    ]);
+    return new Set(this.familyMembers(id).keys());
+  }
+  extended(id: string) {
+    return new Set(this.familyMembers(id, true).keys());
   }
   search(query: string) {
     const normalize = (s: string) =>
