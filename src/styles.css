@@ -832,6 +832,17 @@ select {
   background: #a8b89d !important;
   border: 0 !important;
 }
+.react-flow__handle.partner-handle {
+  opacity: 0;
+}
+.family-edge-details {
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__edge:hover .family-edge-details,
+.react-flow__edge:focus .family-edge-details {
+  opacity: 1;
+}
 .react-flow__controls {
   box-shadow: 0 2px 10px #2e452b0c !important;
   border: 1px solid #dfe5d8;

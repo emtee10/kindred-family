@@ -61,6 +61,20 @@ export function layoutFamily(
         }
       }
     }
+    if (block.ids.length > 2) {
+      // Place a person with several partners between them, instead of routing
+      // every partnership past the other partners' cards.
+      const degree = (person: string) => family.partners(person)
+        .filter((partner) => block.ids.includes(partner)).length;
+      const hub = [...block.ids].sort((a, b) => degree(b) - degree(a))[0];
+      const others = block.ids.filter((person) => person !== hub);
+      const ordered = [hub];
+      others.forEach((partner, index) => {
+        if (index % 2 === 0) ordered.unshift(partner);
+        else ordered.push(partner);
+      });
+      block.ids = ordered;
+    }
     const row = rows.get(level) ?? [];
     row.push(block);
     rows.set(level, row);

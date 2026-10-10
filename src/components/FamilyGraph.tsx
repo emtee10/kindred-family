@@ -19,6 +19,8 @@ import {
 } from "../domain/genealogy";
 import { isParent, confidence, type Person } from "../domain/types";
 import { layoutFamily } from "../domain/family-layout";
+import { planFamilyConnections } from "../domain/family-connections";
+import { familyEdgeTypes } from "./FamilyEdges";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
 import "@xyflow/react/dist/style.css";
 
@@ -57,6 +59,12 @@ function PersonNode({ data }: NodeProps<FamilyNode>) {
         type="source"
         position={data.horizontal ? Position.Right : Position.Bottom}
       />
+      {!data.horizontal && <>
+        <Handle id="partner-left-source" type="source" position={Position.Left} className="partner-handle" />
+        <Handle id="partner-right-source" type="source" position={Position.Right} className="partner-handle" />
+        <Handle id="partner-left-target" type="target" position={Position.Left} className="partner-handle" />
+        <Handle id="partner-right-target" type="target" position={Position.Right} className="partner-handle" />
+      </>}
     </>
   );
 }
@@ -109,6 +117,11 @@ export function FamilyGraph({
           : new Set(family.traverse(root, view, generations).keys()),
     [family, root, view, generations, path, familyRows],
   );
+  const familyPlan = useMemo(() =>
+    view === "family" || view === "extended"
+      ? planFamilyConnections(family, familyRows, layoutFamily(family, root, familyRows))
+      : null,
+  [family, familyRows, root, view]);
   const edges: Edge[] = useMemo(() => {
     const relations =
       view === "path"
@@ -119,7 +132,7 @@ export function FamilyGraph({
               ids.has(r.to) &&
               (view === "family" || view === "extended" || isParent(r)),
           );
-    return relations.map((r, i) => {
+    const individualEdges = relations.map((r, i) => {
       const reversed = view === "path" && path!.people[i] !== r.from;
       const level = confidence(r.confidence);
       return {
@@ -152,7 +165,41 @@ export function FamilyGraph({
         ariaLabel: `${displayName(family.people.get(r.from)!)} ${edgeLabel(r)} ${displayName(family.people.get(r.to)!)}; ${level}`,
       };
     });
-  }, [family, ids, view, path]);
+    if (!familyPlan) return individualEdges;
+    const byRelation = new Map(individualEdges.map((edge) => [edge.id, edge]));
+    const describe = (relationshipId: string) => byRelation.get(relationshipId)!.ariaLabel!;
+    return [
+      ...familyPlan.direct.map((r) => ({
+        ...byRelation.get(r.id)!, id: `relation:${JSON.stringify(r.id)}`,
+      })),
+      ...familyPlan.groups.map((group) => {
+        const relationship = group.relationships[0];
+        const edge = byRelation.get(relationship.id)!;
+        return {
+          ...edge,
+          id: group.id,
+          source: group.parents[0], target: group.children[0],
+          type: "familyConnector", markerEnd: undefined,
+          label: relationship.type === "biological_parent" && confidence(relationship.confidence) === "confirmed"
+            ? undefined : edge.label,
+          ariaLabel: group.relationships.map((r) => describe(r.id)).join(". "),
+          data: { group, description: group.relationships.map((r) => describe(r.id)).join(". ") },
+        };
+      }),
+      ...familyPlan.partners.map(({ relationship, bridge, lane }) => {
+        const fromLeft = familyPlan.positions.get(relationship.from)!.x < familyPlan.positions.get(relationship.to)!.x;
+        return {
+          ...byRelation.get(relationship.id)!,
+          id: `relation:${JSON.stringify(relationship.id)}`,
+          type: "familyPartner",
+          sourceHandle: fromLeft ? "partner-right-source" : "partner-left-source",
+          targetHandle: fromLeft ? "partner-left-target" : "partner-right-target",
+          data: { bridge, lane, description: describe(relationship.id),
+            showLabel: confidence(relationship.confidence) !== "confirmed" },
+        };
+      }),
+    ];
+  }, [family, ids, view, path, familyPlan]);
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
@@ -205,7 +252,7 @@ export function FamilyGraph({
     }));
     const layout = async () => {
       if (view === "family" || view === "extended") {
-        const positions = layoutFamily(family, root, familyRows);
+        const positions = familyPlan!.positions;
         return base.map((node) => ({ ...node, position: positions.get(node.id)! }));
       }
       const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
@@ -249,7 +296,7 @@ export function FamilyGraph({
     return () => {
       cancelled = true;
     };
-  }, [family, root, view, ids, edges, onSelect, familyRows]);
+  }, [family, root, view, ids, edges, onSelect, familyRows, familyPlan]);
   useLayoutEffect(() => {
     const canvas = container.current;
     const node = nodes.find(({ id }) => id === selected) ??
@@ -294,6 +341,7 @@ export function FamilyGraph({
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={familyEdgeTypes}
           minZoom={0.15}
           maxZoom={1.8}
           nodesDraggable={false}
