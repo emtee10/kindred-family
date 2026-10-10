@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Genealogy, displayName, edgeLabel } from "./domain/genealogy";
 import { kinship } from "./domain/kinship";
-import { config } from "./data/config";
+import type { ArchiveConfig } from "./data/types";
+import { signOut } from "next-auth/react";
 import { type View } from "./components/FamilyGraph";
 import {
   Avatar,
@@ -47,7 +48,7 @@ const views: { id: View; name: string; icon: string; description: string }[] = [
     description: "Find the connection. Trace the path between any two people.",
   },
 ];
-export default function App({ family }: { family: Genealogy }) {
+export default function App({ family, config }: { family: Genealogy; config: ArchiveConfig }) {
   const initial =
     config.featured.find((id) => family.people.has(id)) ??
     family.data.people[0].id;
@@ -159,7 +160,7 @@ export default function App({ family }: { family: Genealogy }) {
               <PersonSearch family={family} onSelect={explore} prominent />
               <div className="search-hint">
                 {config.isDemo
-                  ? "Try “Elara”, “Willowmere”, or a nickname like “Ellie”"
+                  ? "Try a name from the fictional starter family."
                   : "Search a current, former, or birth name."}
               </div>
             </div>
@@ -517,6 +518,7 @@ export default function App({ family }: { family: Genealogy }) {
             ? "Fictional people. Real possibilities."
             : "A family archive, thoughtfully kept."}
         </small>
+        <button className="logout-button" onClick={() => signOut({ callbackUrl: "/login" })}>Log out</button>
       </footer>
     </div>
   );

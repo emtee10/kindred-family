@@ -1,16 +1,23 @@
 # Family data guide
 
-Kindred stores people and relationships separately. The JSON describes genealogy, never graph positions. All files are validated before the interface renders. Errors identify the file collection, record index, ID where available, and offending field. Unsupported fields are rejected to catch misspellings.
+Kindred stores people and relationships separately. The JSON describes genealogy, never graph positions. The server loads and validates the JSON only after authentication; the client validates the received records before the interface renders. The Next.js migration preserves the existing person, relationship, event, date, and photo record formats. Errors identify the file collection, record index, ID where available, and offending field. Unsupported fields are rejected to catch misspellings.
 
 ## Files
 
-| File                          | Contents                                                                |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| `src/data/people.json`        | Array of person records, including structured events                    |
-| `src/data/relationships.json` | Array of relationship records                                           |
-| `src/data/config.ts`          | Application title, subtitle, `isDemo` indicator and featured person IDs |
-| `public/photos/`              | Optional portrait files; never embed images in JSON                     |
-| `src/data/load.ts`            | Build-time loading boundary; change imports here for private data       |
+| File | Contents |
+| --- | --- |
+| `private-data/people.json` | Server-only array of person records, including structured events |
+| `private-data/relationships.json` | Server-only array of relationship records |
+| `private-data/config.ts` | Server-only application title, subtitle, `isDemo` indicator, and featured person IDs |
+| `private-media/` | Private portrait files; never embed images in JSON |
+| `src/server/family-data.ts` | Server-only provider adapter for `/api/family-data` |
+| `src/server/providers/` | Server-only local/Blob provider selection and validation |
+| `src/server/photos.ts` | Server-only provider adapter for `/api/photos/[...filename]` |
+| `src/data/types.ts` | Shared TypeScript archive types, with no family records |
+
+The file table describes the `local` provider. With `FAMILY_DATA_PROVIDER=blob`, the same people and relationship arrays are stored at the corresponding private Blob pathnames; archive configuration is `private-data/config.json` with the same `title`, `subtitle`, `isDemo`, and `featured` fields. Photos are stored at `private-media/<file>`. No genealogy schema or photo `file` format changes. See [README deployment models](../README.md#deployment) for storage setup.
+
+Neither private directory is directly routable. Both API routes independently require an Auth.js session and return private, non-cacheable responses. Never place family JSON or photographs in `public/`, and never import private records or configuration into Client Components.
 
 Use stable, unique, nonempty string IDs, for example `p0012` or `elara`. Once assigned, do not change an ID when a person changes their name. People and relationships each have their own ID namespace. The dataset must contain at least one person. No particular person ID is required by the app.
 
@@ -151,21 +158,21 @@ Shortest paths traverse all supported relationships in both directions, preservi
 
 ## Photos
 
-Up to three portraits per person, with at most one primary photo. `file` is required: a relative path under `public/photos/` with a `.jpg`, `.jpeg`, `.png`, `.webp`, or `.avif` extension. Optional fields: `label` (string), `primary` (boolean), `date` (date object or null). Paths cannot contain `..`, a leading slash, or a remote URL.
+Up to three portraits per person, with at most one primary photo. `file` is required: a relative path under `private-media/` in the local filesystem or Private Blob store with a `.jpg`, `.jpeg`, `.png`, `.webp`, or `.avif` extension. Optional fields: `label` (string), `primary` (boolean), `date` (date object or null). Paths cannot contain `..`, a leading slash, or a remote URL.
 
 ```json
 { "file": "p0012-1965.webp", "label": "1965", "primary": true }
 ```
 
-To add a photo, place the file in `public/photos/`, then append its record to the person's `photos` array. Primary photo is used on cards, otherwise the first photo. Missing or failed primary images use initials; profile galleries include captions. Alt text includes the person's name and optional label. Synthetic starter records deliberately contain no photos.
+To add a photo, place the file in local `private-media/` or upload it to the corresponding Private Blob pathname, then append its record to the person's `photos` array. Primary photo is used on cards, otherwise the first photo. Missing or failed primary images use initials; profile galleries include captions. Alt text includes the person's name and optional label. Synthetic starter records deliberately contain no photos. The client requests images through the authenticated `/api/photos/[...filename]` route; for example, `portraits/p0012.webp` refers to `private-media/portraits/p0012.webp`. Use nonempty path segments containing letters, digits, underscores, hyphens, or dots, with no segment starting with a dot and no `..` anywhere. The local provider checks resolved filesystem containment, including symlinks, while the Blob provider constructs only validated private object paths. The route returns 404 for missing or invalid files and 401 without authentication. Responses use `Cache-Control: private, no-store`. For local files packaged on Vercel, rebuild and redeploy after adding photos so runtime file tracing includes them. Blob photo updates do not require redeployment.
 
 ## Add a person
 
 1. Choose a new stable ID.
-2. Append an object with that ID and at least one typed name to `people.json`.
+2. Append an object with that ID and at least one typed name to `private-data/people.json`.
 3. Add known facts, events, and optional photos. Omit unknown facts.
-4. Add relationships separately, always from parent to child for parent types.
-5. Run `npm test` and `npm run build`; open the app to check startup validation. The test command verifies both the starter dataset and isolated domain cases.
+4. Add relationships to `private-data/relationships.json`, always from parent to child for parent types.
+5. Run `npm test`, `npm run typecheck`, and `npm run build` when working with synthetic data; sign in to the app to check runtime validation. Existing tests assert starter examples as well as isolated domain cases, so run those tests before replacing the starter dataset with real records in a private deployment workspace. Replacement JSON is validated on authenticated data loading, not by the production build alone.
 
 Minimal example:
 
@@ -173,4 +180,4 @@ Minimal example:
 { "id": "p0099", "names": [{ "given": "Ash", "type": "current" }] }
 ```
 
-See the [README](../README.md) for private deployment and build-time data replacement. A static build contains the entire loaded dataset and every file in `public/`; hosting access controls are required for privacy.
+See the [README](../README.md#deployment) for local secret setup, Vercel and Node.js deployment, private-data replacement, and session rotation. Keep the repository and deployment workspace containing real records private. JSON and media belong in private server files or a Private Blob store, never browser bundles or `public/`. Anyone with the shared password can download the complete dataset; this model does not provide individual authorization.
