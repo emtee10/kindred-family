@@ -21,7 +21,7 @@ import { isParent, confidence, type Person } from "../domain/types";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
 import "@xyflow/react/dist/style.css";
 
-export type View = "family" | "ancestors" | "descendants" | "path";
+export type View = "family" | "extended" | "ancestors" | "descendants" | "path";
 type PersonNodeData = {
   person: Person;
   root: boolean;
@@ -92,14 +92,21 @@ export function FamilyGraph({
     () => (view === "path" ? family.path(root, target) : null),
     [family, view, root, target],
   );
+  const familyRows = useMemo(
+    () =>
+      view === "family" || view === "extended"
+        ? family.familyMembers(root, view === "extended")
+        : new Map<string, number>(),
+    [family, root, view],
+  );
   const ids = useMemo(
     () =>
-      view === "family"
-        ? family.immediate(root)
+      view === "family" || view === "extended"
+        ? new Set(familyRows.keys())
         : view === "path"
           ? new Set(path?.people ?? [])
           : new Set(family.traverse(root, view, generations).keys()),
-    [family, root, view, generations, path],
+    [family, root, view, generations, path, familyRows],
   );
   const edges: Edge[] = useMemo(() => {
     const relations =
@@ -109,7 +116,7 @@ export function FamilyGraph({
             (r) =>
               ids.has(r.from) &&
               ids.has(r.to) &&
-              (view === "family" || isParent(r)),
+              (view === "family" || view === "extended" || isParent(r)),
           );
     return relations.map((r, i) => {
       const reversed = view === "path" && path!.people[i] !== r.from;
@@ -151,7 +158,18 @@ export function FamilyGraph({
     setError("");
     const people = [...ids];
     const captions = new Map<string, string>();
-    if (view === "family") {
+    if (view === "family" || view === "extended") {
+      if (view === "extended") {
+        const labels: Record<number, string> = {
+          [-2]: "Grandparent",
+          [-1]: "Aunt / uncle",
+          1: "Niece / nephew",
+          2: "Grandchild",
+        };
+        familyRows.forEach((row, id) => {
+          if (labels[row]) captions.set(id, labels[row]);
+        });
+      }
       family
         .siblings(root)
         .forEach((s) =>
@@ -185,22 +203,16 @@ export function FamilyGraph({
       },
     }));
     const layout = async () => {
-      if (view === "family") {
-        const parents = new Set(family.parents(root)),
-          children = new Set(family.children(root));
-        const rows = [
-          people.filter((id) => parents.has(id) && id !== root),
-          people.filter(
-            (id) => id === root || (!parents.has(id) && !children.has(id)),
-          ),
-          people.filter(
-            (id) => children.has(id) && !parents.has(id) && id !== root,
-          ),
-        ];
-        const middle = rows[1].filter((id) => id !== root),
+      if (view === "family" || view === "extended") {
+        const levels = [...new Set(familyRows.values())].sort((a, b) => a - b);
+        const rows = levels.map((level) =>
+          people.filter((id) => familyRows.get(id) === level),
+        );
+        const rootRow = levels.indexOf(0);
+        const middle = rows[rootRow].filter((id) => id !== root),
           center = Math.floor(middle.length / 2);
         middle.splice(center, 0, root);
-        rows[1] = middle;
+        rows[rootRow] = middle;
         return base.map((node) => {
           const row = rows.findIndex((r) => r.includes(node.id));
           return {
@@ -208,7 +220,7 @@ export function FamilyGraph({
             position: {
               x:
                 (rows[row].indexOf(node.id) - (rows[row].length - 1) / 2) * 235,
-              y: row * 210,
+              y: levels[row] * 210,
             },
           };
         });
@@ -254,7 +266,7 @@ export function FamilyGraph({
     return () => {
       cancelled = true;
     };
-  }, [family, root, view, ids, edges, onSelect]);
+  }, [family, root, view, ids, edges, onSelect, familyRows]);
   useLayoutEffect(() => {
     const canvas = container.current;
     const node = nodes.find(({ id }) => id === selected) ??

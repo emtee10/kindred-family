@@ -44,6 +44,43 @@ describe("family exploration", () => {
     expect(family.traverse("piper", "ancestors", 2).has("ada")).toBe(false);
     expect(family.traverse("ada", "descendants", 3).get("piper")).toBe(3);
   });
+  it("adds exactly the requested extended relatives and assigns their rows", () => {
+    const g = new Genealogy({
+      people: [
+        "root", "parent", "grandparent", "great-grandparent", "older",
+        "child", "grandchild", "great-grandchild", "younger", "sibling",
+        "niece", "partner", "aunt", "cousin", "partner-parent",
+      ].map(person),
+      relationships: [
+        { id: "1", from: "older", to: "great-grandparent", type: "biological_parent" },
+        { id: "2", from: "great-grandparent", to: "grandparent", type: "biological_parent" },
+        { id: "3", from: "grandparent", to: "parent", type: "adoptive_parent" },
+        { id: "4", from: "parent", to: "root", type: "guardian" },
+        { id: "5", from: "root", to: "child", type: "step_parent" },
+        { id: "6", from: "child", to: "grandchild", type: "biological_parent" },
+        { id: "7", from: "grandchild", to: "great-grandchild", type: "biological_parent" },
+        { id: "8", from: "great-grandchild", to: "younger", type: "biological_parent" },
+        { id: "9", from: "parent", to: "sibling", type: "guardian" },
+        { id: "10", from: "sibling", to: "niece", type: "biological_parent" },
+        { id: "11", from: "root", to: "partner", type: "partner" },
+        { id: "12", from: "grandparent", to: "aunt", type: "adoptive_parent" },
+        { id: "13", from: "aunt", to: "cousin", type: "biological_parent" },
+        { id: "14", from: "partner-parent", to: "partner", type: "biological_parent" },
+      ],
+    });
+    expect(g.immediate("root")).toEqual(new Set(["root", "parent", "child", "partner", "sibling"]));
+    expect(g.extended("root")).toEqual(new Set([
+      "root", "parent", "child", "partner", "sibling",
+      "grandparent", "grandchild", "aunt", "niece",
+    ]));
+    const rows = g.familyMembers("root", true);
+    expect(rows.get("grandparent")).toBe(-2);
+    expect(rows.get("grandchild")).toBe(2);
+    expect(rows.get("aunt")).toBe(-1);
+    expect(rows.get("niece")).toBe(1);
+    expect(rows.get("sibling")).toBe(0);
+    expect(rows.get("partner")).toBe(0);
+  });
   it("safely traverses directed cycles and collapses repeated ancestors", () => {
     const g = new Genealogy({
       people: ["a", "b", "c", "d"].map(person),
@@ -57,6 +94,8 @@ describe("family exploration", () => {
     });
     expect(g.traverse("a", "descendants", 100).size).toBe(4);
     expect(g.traverse("c", "ancestors", 100).size).toBe(4);
+    expect(g.extended("a").size).toBe(4);
+    expect(g.familyMembers("a", true).get("a")).toBe(0);
     expect(g.path("a", "c")?.edges).toHaveLength(1);
   });
   it("finds shortest routes in either direction through every supported connection", () => {

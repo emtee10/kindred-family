@@ -553,7 +553,7 @@ button svg {
 }
 .view-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
 }
 .view-card {
@@ -711,6 +711,7 @@ button svg {
 }
 .view-tabs {
   display: flex;
+  flex-wrap: wrap;
   background: #edf0e8;
   border: 1px solid #e4e8dd;
   border-radius: 7px;

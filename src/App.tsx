@@ -22,10 +22,17 @@ const FamilyGraph = lazy(() =>
 const views: { id: View; name: string; icon: string; description: string }[] = [
   {
     id: "family",
-    name: "Immediate family",
+    name: "Immediate Family",
     icon: "family",
     description:
       "The people closest to you. Parents, siblings, partners, and children.",
+  },
+  {
+    id: "extended",
+    name: "Extended Family",
+    icon: "family",
+    description:
+      "Explore further. Meet grandparents, grandchildren, aunts, uncles, nieces, and nephews.",
   },
   {
     id: "ancestors",
@@ -467,10 +474,12 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 <span>Drag to pan · Scroll or pinch to zoom</span>
                 <span>
                   {view === "family"
-                    ? "One person. Their closest connections."
-                    : view === "path"
-                      ? "Shortest path through recorded relationships."
-                      : `Up to ${generations} generations · all parent types included`}
+                    ? "Parents, children, partners, and siblings."
+                    : view === "extended"
+                      ? "Immediate family plus grandparents, grandchildren, aunts, uncles, nieces, and nephews."
+                      : view === "path"
+                        ? "Shortest path through recorded relationships."
+                        : `Up to ${generations} generations · all parent types included`}
                 </span>
               </div>
             </section>
@@ -485,9 +494,11 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               {[
                 ...(view === "family"
                   ? family.immediate(root)
-                  : view === "path"
-                    ? (path?.people ?? [])
-                    : family.traverse(root, view, generations).keys()),
+                  : view === "extended"
+                    ? family.extended(root)
+                    : view === "path"
+                      ? (path?.people ?? [])
+                      : family.traverse(root, view, generations).keys()),
               ].map((id, index) => (
                 <span className="path-entry" role="listitem" key={id}>
                   <button onClick={() => selectNode(id)}>
