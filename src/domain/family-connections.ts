@@ -23,6 +23,7 @@ export function planFamilyConnections(
   family: Genealogy,
   levels: Map<string, number>,
   positions: Map<string, Point>,
+  { includePartners = true }: { includePartners?: boolean } = {},
 ) {
   const incoming = new Map<string, Relationship[]>();
   for (const relation of family.data.relationships) {
@@ -90,7 +91,7 @@ export function planFamilyConnections(
   const partners: PartnerConnection[] = [];
   const bridges = new Map<number, number>();
   for (const relationship of family.data.relationships) {
-    if (isParent(relationship) || !levels.has(relationship.from) || !levels.has(relationship.to)) continue;
+    if (!includePartners || isParent(relationship) || !levels.has(relationship.from) || !levels.has(relationship.to)) continue;
     const fromLevel = levels.get(relationship.from)!;
     if (fromLevel !== levels.get(relationship.to)) {
       direct.push(relationship);

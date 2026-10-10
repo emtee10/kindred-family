@@ -18,7 +18,7 @@ import {
   edgeLabel,
 } from "../domain/genealogy";
 import { isParent, confidence, type Person } from "../domain/types";
-import { layoutFamily } from "../domain/family-layout";
+import { layoutFamily, lineageRows } from "../domain/family-layout";
 import { planFamilyConnections } from "../domain/family-connections";
 import { familyEdgeTypes } from "./FamilyEdges";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
@@ -105,22 +105,23 @@ export function FamilyGraph({
     () =>
       view === "family" || view === "extended"
         ? family.familyMembers(root, view === "extended")
-        : new Map<string, number>(),
-    [family, root, view],
+        : view === "path"
+          ? new Map<string, number>()
+          : lineageRows(family, root, view, generations),
+    [family, root, view, generations],
   );
   const ids = useMemo(
     () =>
-      view === "family" || view === "extended"
-        ? new Set(familyRows.keys())
-        : view === "path"
-          ? new Set(path?.people ?? [])
-          : new Set(family.traverse(root, view, generations).keys()),
-    [family, root, view, generations, path, familyRows],
+      view === "path" ? new Set(path?.people ?? []) : new Set(familyRows.keys()),
+    [view, path, familyRows],
   );
   const familyPlan = useMemo(() =>
-    view === "family" || view === "extended"
-      ? planFamilyConnections(family, familyRows, layoutFamily(family, root, familyRows))
-      : null,
+    view === "path" ? null : planFamilyConnections(
+      family, familyRows, layoutFamily(family, root, familyRows, {
+        groupPartners: view === "family" || view === "extended",
+      }),
+      { includePartners: view === "family" || view === "extended" },
+    ),
   [family, familyRows, root, view]);
   const edges: Edge[] = useMemo(() => {
     const relations =
@@ -140,7 +141,9 @@ export function FamilyGraph({
         source: reversed ? r.to : r.from,
         target: reversed ? r.from : r.to,
         type: "smoothstep",
-        label: `${edgeLabel(r, reversed ? r.to : r.from)}${level !== "confirmed" ? ` · ${level}` : ""}`,
+        label: view !== "path" && r.type === "biological_parent" && level === "confirmed"
+          ? undefined
+          : `${edgeLabel(r, reversed ? r.to : r.from)}${level !== "confirmed" ? ` · ${level}` : ""}`,
         markerEnd: isParent(r)
           ? {
               type: MarkerType.ArrowClosed,
@@ -251,8 +254,8 @@ export function FamilyGraph({
       },
     }));
     const layout = async () => {
-      if (view === "family" || view === "extended") {
-        const positions = familyPlan!.positions;
+      if (familyPlan) {
+        const positions = familyPlan.positions;
         return base.map((node) => ({ ...node, position: positions.get(node.id)! }));
       }
       const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
@@ -260,7 +263,7 @@ export function FamilyGraph({
         id: "family",
         layoutOptions: {
           "elk.algorithm": "layered",
-          "elk.direction": view === "path" ? "RIGHT" : "DOWN",
+          "elk.direction": "RIGHT",
           "elk.spacing.nodeNode": "50",
           "elk.layered.spacing.nodeNodeBetweenLayers": "115",
           "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",

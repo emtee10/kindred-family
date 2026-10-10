@@ -6,6 +6,18 @@ const GENERATION_SPACING = 210;
 type Position = { x: number; y: number };
 type Block = { ids: string[]; x: number; width: number };
 
+export function lineageRows(
+  family: Genealogy,
+  root: string,
+  direction: "ancestors" | "descendants",
+  generations: number,
+): Map<string, number> {
+  const sign = direction === "ancestors" ? -1 : 1;
+  return new Map([...family.traverse(root, direction, generations)].map(
+    ([id, depth]) => [id, depth * sign],
+  ));
+}
+
 // Find the closest positions to the preferred centers while enforcing card
 // spacing. Pooling crowded neighbors lets both branches make room equally.
 function placeRow(row: Block[], targets: Map<Block, { x: number; weight: number }>) {
@@ -42,6 +54,7 @@ export function layoutFamily(
   family: Genealogy,
   root: string,
   levels: Map<string, number>,
+  { groupPartners = true }: { groupPartners?: boolean } = {},
 ): Map<string, Position> {
   const rows = new Map<number, Block[]>();
   const blocks = new Map<string, Block>();
@@ -54,7 +67,7 @@ export function layoutFamily(
     const block: Block = { ids: [id], x: 0, width: HORIZONTAL_SPACING };
     blocks.set(id, block);
     for (let i = 0; i < block.ids.length; i++) {
-      for (const partner of family.partners(block.ids[i])) {
+      for (const partner of groupPartners ? family.partners(block.ids[i]) : []) {
         if (levels.get(partner) === level && !blocks.has(partner)) {
           block.ids.push(partner);
           blocks.set(partner, block);

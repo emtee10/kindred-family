@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Genealogy } from "./genealogy";
-import { layoutFamily } from "./family-layout";
+import { layoutFamily, lineageRows } from "./family-layout";
+import { planFamilyConnections } from "./family-connections";
 import type { Person, Relationship } from "./types";
 
 const person = (id: string): Person => ({
@@ -17,6 +18,55 @@ function genealogy(links: [string, string, Relationship["type"]][]) {
 const parent = "biological_parent";
 
 describe("family graph layout", () => {
+  it("centers ancestors above their children and respects the generation limit", () => {
+    const family = genealogy([
+      ["parent-a", "root", parent], ["parent-b", "root", parent],
+      ["grandparent-a", "parent-a", parent], ["grandparent-b", "parent-a", parent],
+      ["grandparent-c", "parent-b", parent],
+      ["great-grandparent", "grandparent-a", parent],
+      ["parent-a", "parent-b", "spouse"],
+    ]);
+    const levels = lineageRows(family, "root", "ancestors", 2);
+    const result = planFamilyConnections(family, levels, layoutFamily(family, "root", levels, { groupPartners: false }), { includePartners: false });
+    const x = (id: string) => result.positions.get(id)!.x;
+    expect(result.positions.get("root")).toEqual({ x: 0, y: 0 });
+    expect(Math.abs((x("parent-a") + x("parent-b")) / 2)).toBeLessThan(2);
+    expect(Math.abs((x("grandparent-a") + x("grandparent-b")) / 2 - x("parent-a"))).toBeLessThan(2);
+    expect(Math.abs(x("grandparent-c") - x("parent-b"))).toBeLessThan(2);
+    expect(levels.get("parent-a")).toBe(-1);
+    expect(levels.get("grandparent-a")).toBe(-2);
+    expect(levels.has("great-grandparent")).toBe(false);
+    expect(result.partners).toEqual([]);
+    expect(result.groups.flatMap((group) => group.relationships)).toHaveLength(5);
+  });
+
+  it("centers unequal descendant branches below their parents", () => {
+    const family = genealogy([
+      ["root", "child-a", parent], ["root", "child-b", parent],
+      ["child-a", "grandchild-a", parent], ["child-a", "grandchild-b", parent],
+      ["child-a", "grandchild-c", parent], ["child-b", "grandchild-d", parent],
+      ["grandchild-b", "great-grandchild", parent],
+    ]);
+    const levels = lineageRows(family, "root", "descendants", 2);
+    const result = planFamilyConnections(family, levels, layoutFamily(family, "root", levels, { groupPartners: false }), { includePartners: false });
+    const x = (id: string) => result.positions.get(id)!.x;
+    expect(result.positions.get("root")).toEqual({ x: 0, y: 0 });
+    expect(Math.abs((x("child-a") + x("child-b")) / 2)).toBeLessThan(2);
+    expect(Math.abs((x("grandchild-a") + x("grandchild-b") + x("grandchild-c")) / 3 - x("child-a"))).toBeLessThan(2);
+    expect(Math.abs(x("grandchild-d") - x("child-b"))).toBeLessThan(2);
+    expect(levels.get("child-a")).toBe(1);
+    expect(levels.get("grandchild-a")).toBe(2);
+    expect(levels.has("great-grandchild")).toBe(false);
+    expect(result.groups).toHaveLength(3);
+    for (const level of new Set(levels.values())) {
+      const xs = [...levels].filter(([, row]) => row === level)
+        .map(([id]) => x(id)).sort((a, b) => a - b);
+      for (let i = 1; i < xs.length; i++) {
+        expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(235 - 1e-6);
+      }
+    }
+  });
+
   it("places a child's branch beneath its parents rather than an aunt", () => {
     const family = genealogy([
       ["grandparent", "parent", parent],
