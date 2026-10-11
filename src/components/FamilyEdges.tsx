@@ -1,29 +1,34 @@
 import {
   BaseEdge,
   EdgeText,
-  getSmoothStepPath,
   useNodes,
   type Edge,
   type EdgeProps,
 } from "@xyflow/react";
 import {
   familyConnectorGeometry,
+  partnerConnectorGeometry,
   PERSON_HEIGHT,
   PERSON_WIDTH,
   type FamilyConnection,
   type PersonRect,
+  type PartnerConnection,
 } from "../domain/family-connections";
 
 type ConnectorEdge = Edge<{ group: FamilyConnection; description: string }, "familyConnector">;
-type PartnerEdge = Edge<{ bridge: boolean; lane: number; description: string; showLabel: boolean }, "familyPartner">;
+type PartnerEdge = Edge<{ partner: PartnerConnection; description: string; showLabel: boolean }, "familyPartner">;
 
-function FamilyConnector({ data, style, label, labelStyle, labelBgStyle }: EdgeProps<ConnectorEdge>) {
+function usePersonRects() {
   const nodes = useNodes();
-  const rects = new Map<string, PersonRect>(nodes.map((node) => [node.id, {
+  return new Map<string, PersonRect>(nodes.map((node) => [node.id, {
     ...node.position,
     width: node.measured?.width ?? PERSON_WIDTH,
     height: node.measured?.height ?? PERSON_HEIGHT,
   }]));
+}
+
+function FamilyConnector({ data, style, label, labelStyle, labelBgStyle }: EdgeProps<ConnectorEdge>) {
+  const rects = usePersonRects();
   if (!data) return null;
   const geometry = familyConnectorGeometry(data.group, rects);
   if (!geometry) return null;
@@ -45,33 +50,18 @@ function FamilyConnector({ data, style, label, labelStyle, labelBgStyle }: EdgeP
 }
 
 function FamilyPartner({
-  data, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
-  style, label, labelStyle, labelBgStyle,
+  data, style, label, labelStyle, labelBgStyle,
 }: EdgeProps<PartnerEdge>) {
-  const nodes = useNodes();
+  const rects = usePersonRects();
   if (!data) return null;
-  let [path, labelX, labelY] = getSmoothStepPath({
-    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 6,
-  });
-  if (data.bridge) {
-    const from = nodes.find((node) => node.id === source);
-    const to = nodes.find((node) => node.id === target);
-    if (!from || !to) return null;
-    const rowY = Math.min(from.position.y, to.position.y);
-    const bridgeY = rowY - 18 - data.lane * 16;
-    const direction = sourceX < targetX ? 1 : -1;
-    const fromX = sourceX + direction * 12;
-    const toX = targetX - direction * 12;
-    path = `M ${sourceX} ${sourceY} L ${fromX} ${sourceY} L ${fromX} ${bridgeY} L ${toX} ${bridgeY} L ${toX} ${targetY} L ${targetX} ${targetY}`;
-    labelX = (fromX + toX) / 2;
-    labelY = bridgeY;
-  }
+  const geometry = partnerConnectorGeometry(data.partner, rects);
+  if (!geometry) return null;
   return (
     <g className="family-partner">
       <title>{data.description}</title>
-      <BaseEdge path={path} style={style} interactionWidth={12} />
+      <BaseEdge path={geometry.path} style={style} interactionWidth={12} />
       <g className={data.showLabel ? undefined : "family-edge-details"}>
-        <EdgeText x={labelX} y={labelY} label={label} labelStyle={labelStyle}
+        <EdgeText x={geometry.midpoint.x} y={geometry.midpoint.y} label={label} labelStyle={labelStyle}
           labelBgStyle={labelBgStyle} labelBgPadding={[5, 3]} />
       </g>
     </g>

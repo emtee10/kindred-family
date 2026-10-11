@@ -197,7 +197,7 @@ export function FamilyGraph({
           type: "familyPartner",
           sourceHandle: fromLeft ? "partner-right-source" : "partner-left-source",
           targetHandle: fromLeft ? "partner-left-target" : "partner-right-target",
-          data: { bridge, lane, description: describe(relationship.id),
+          data: { partner: { relationship, bridge, lane }, description: describe(relationship.id),
             showLabel: confidence(relationship.confidence) !== "confirmed" },
         };
       }),

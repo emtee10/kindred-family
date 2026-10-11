@@ -3,6 +3,7 @@ import { Genealogy } from "./genealogy";
 import { layoutFamily } from "./family-layout";
 import {
   familyConnectorGeometry,
+  partnerConnectorGeometry,
   planFamilyConnections,
   PERSON_HEIGHT,
   PERSON_WIDTH,
@@ -32,6 +33,65 @@ const rects = (positions: Map<string, { x: number; y: number }>) =>
   }]));
 
 describe("family connectors", () => {
+  it.each(["spouse", "partner"] as const)("starts shared children at the visible %s line midpoint", (type) => {
+    const family = fixture([
+      ["other", "root", type],
+      ["root", "a", parent], ["other", "a", parent],
+      ["root", "b", parent], ["other", "b", parent],
+    ]);
+    const result = plan(family);
+    const group = result.groups[0];
+    expect(group.union).toEqual(result.partners[0]);
+    const measured = rects(result.positions);
+    measured.set("other", { ...measured.get("other")!, width: 210, height: 115 });
+    const midpoint = partnerConnectorGeometry(result.partners[0], measured)!.midpoint;
+    const geometry = familyConnectorGeometry(group, measured)!;
+    expect(geometry.paths[0]).toMatch(new RegExp(`^M ${midpoint.x} ${midpoint.y} L ${midpoint.x} `));
+    expect(geometry.junctions).toContainEqual(midpoint);
+    expect(geometry.paths).toHaveLength(4);
+    for (const id of group.parents) {
+      const rect = measured.get(id)!;
+      expect(geometry.paths.some((path) => path.startsWith(`M ${rect.x + rect.width / 2} ${rect.y + rect.height} `))).toBe(false);
+    }
+  });
+
+  it("uses the routed bridge midpoint for non-adjacent parents", () => {
+    const family = fixture([
+      ["root", "other", "partner"], ["root", "middle", "partner"],
+      ["root", "child", parent], ["other", "child", parent],
+    ]);
+    const levels = new Map([["root", 0], ["middle", 0], ["other", 0], ["child", 1]]);
+    const positions = new Map([
+      ["root", { x: 0, y: 0 }], ["middle", { x: 235, y: 0 }],
+      ["other", { x: 470, y: 0 }], ["child", { x: 235, y: 210 }],
+    ]);
+    const result = planFamilyConnections(family, levels, positions);
+    const group = result.groups[0];
+    expect(group.union?.bridge).toBe(true);
+    const measured = rects(result.positions);
+    const midpoint = partnerConnectorGeometry(group.union!, measured)!.midpoint;
+    expect(midpoint).toEqual({ x: 330, y: -18 });
+    expect(familyConnectorGeometry(group, measured)!.paths[0]).toMatch(/^M 330 -18 L 330 /);
+  });
+
+  it("retains parent attachments when partnership edges are excluded or a third parent is recorded", () => {
+    const family = fixture([
+      ["root", "other", "spouse"],
+      ["root", "child", parent], ["other", "child", parent],
+      ["hidden", "child", parent],
+    ]);
+    const levels = new Map([["root", 0], ["other", 0], ["child", 1]]);
+    const positions = layoutFamily(family, "root", levels);
+    const thirdParent = planFamilyConnections(family, levels, positions);
+    expect(thirdParent.groups[0].union).toBeUndefined();
+    const twoParents = fixture(family.data.relationships.filter((r) => r.from !== "hidden")
+      .map((r) => [r.from, r.to, r.type]));
+    const excluded = planFamilyConnections(twoParents, levels, positions, { includePartners: false });
+    expect(excluded.groups[0].union).toBeUndefined();
+    expect(excluded.partners).toEqual([]);
+    expect(familyConnectorGeometry(excluded.groups[0], rects(excluded.positions))!.paths).toHaveLength(5);
+  });
+
   it("draws one family connector for shared children without implying a partnership", () => {
     const family = fixture([
       ["root", "a", parent], ["other", "a", parent],
