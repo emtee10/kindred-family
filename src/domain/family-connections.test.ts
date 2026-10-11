@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { Genealogy } from "./genealogy";
+import { validateFamily } from "./validation";
 import { layoutFamily } from "./family-layout";
 import {
   familyConnectorGeometry,
@@ -33,6 +35,45 @@ const rects = (positions: Map<string, { x: number; y: number }>) =>
   }]));
 
 describe("family connectors", () => {
+  it.each([false, true])("connects Celia and Theo to Finn and Wren through their union (extended=%s)", (extended) => {
+    const family = new Genealogy(validateFamily(
+      JSON.parse(readFileSync("private-data/people.json", "utf8")),
+      JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+    ));
+    const result = plan(family, "celia", extended);
+    expect(result.positions.has("sylvie")).toBe(false);
+    const group = result.groups.find((group) => group.children.includes("finn"))!;
+    expect(group.parents).toEqual(["theo", "celia"]);
+    expect(group.children).toEqual(["finn", "wren"]);
+    expect(group.union?.relationship.id).toBe("r12");
+    const measured = rects(result.positions);
+    const midpoint = partnerConnectorGeometry(group.union!, measured)!.midpoint;
+    const geometry = familyConnectorGeometry(group, measured)!;
+    expect(geometry.sharedPaths).toHaveLength(2);
+    const bar = geometry.sharedPaths[1].split(" ").map(Number);
+    expect(geometry.sharedPaths[0]).toBe(`M ${midpoint.x} ${midpoint.y} L ${midpoint.x} ${bar[2]}`);
+    expect(geometry.childBranches.map((branch) => branch.child)).toEqual(["finn", "wren"]);
+    expect(geometry.childBranches.every((branch) => Number(branch.path.split(" ")[2]) === bar[2])).toBe(true);
+    expect(geometry.junctions).toContainEqual(midpoint);
+  });
+
+  it.each(["step_parent", "guardian"] as const)("ignores an off-screen %s for union eligibility but preserves visible relationships", (type) => {
+    const family = fixture([
+      ["root", "other", "spouse"],
+      ["root", "a", parent], ["other", "a", parent], ["extra", "a", type],
+      ["root", "b", parent], ["other", "b", parent], ["extra", "b", type],
+    ]);
+    const levels = new Map([["root", 0], ["other", 0], ["a", 1], ["b", 1]]);
+    const result = planFamilyConnections(family, levels, layoutFamily(family, "root", levels));
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].union).toEqual(result.partners[0]);
+    levels.set("extra", 0);
+    const visible = planFamilyConnections(family, levels, layoutFamily(family, "root", levels));
+    expect(visible.groups[0].parents).toEqual(["root", "other", "extra"]);
+    expect(visible.groups[0].union).toBeUndefined();
+    expect(visible.groups[0].relationships.filter((r) => r.from === "extra")).toHaveLength(2);
+  });
+
   it.each(["single", "paired", "unpartnered"])("shares one sibling bar and stem for %s parents despite differing metadata", (kind) => {
     const family = fixture([
       ["root", "a", parent],

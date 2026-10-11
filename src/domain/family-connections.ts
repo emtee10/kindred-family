@@ -107,8 +107,15 @@ export function planFamilyConnections(
   }
   for (const group of connections) {
     group.childBridgeLanes = bridges.get(group.childLevel) ?? 0;
+    // An off-screen step-parent/guardian is not another member of the visible
+    // parental union. Hidden biological/adoptive parents still count, so a
+    // partial view of a larger parent set cannot imply a two-parent union.
+    const unionParents = new Set((incoming.get(group.children[0]) ?? [])
+      .filter((r) => group.parents.includes(r.from) ||
+        r.type === "biological_parent" || r.type === "adoptive_parent")
+      .map((r) => r.from));
     if (group.parents.length === 2 &&
-      new Set((incoming.get(group.children[0]) ?? []).map((r) => r.from)).size === 2) {
+      unionParents.size === 2) {
       group.union = partners.find(({ relationship }) =>
         group.parents.includes(relationship.from) && group.parents.includes(relationship.to),
       );
