@@ -1,6 +1,6 @@
 import type { Genealogy } from "./genealogy";
 import { getSmoothStepPath, Position } from "@xyflow/react";
-import { confidence, isParent, type Relationship } from "./types";
+import { isParent, type Relationship } from "./types";
 
 export const PERSON_WIDTH = 190;
 export const PERSON_HEIGHT = 95;
@@ -42,20 +42,17 @@ export function planFamilyConnections(
     if (!visible.length) continue;
     const first = visible[0];
     const parentLevel = levels.get(first.from)!;
-    // Never merge different kinds/confidence levels or route a family bar
-    // across another generation. Those connections retain individual labels.
+    // Conflicting generation assignments still require individual routing.
     if (parentLevel + 1 !== childLevel || visible.some((r) =>
-      levels.get(r.from) !== parentLevel || r.type !== first.type ||
-      confidence(r.confidence) !== confidence(first.confidence),
+      levels.get(r.from) !== parentLevel,
     )) {
       direct.push(...visible);
       continue;
     }
     // Include hidden parents in the key: half-siblings must not become full
     // siblings just because one of their parents is outside the current view.
-    const signature = recorded.map((r) =>
-      [r.from, r.type, confidence(r.confidence)],
-    ).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    // Relationship metadata belongs to the branches, not the family identity.
+    const signature = [...new Set(recorded.map((r) => r.from))].sort();
     const key = JSON.stringify([parentLevel, childLevel, signature]);
     const group = groups.get(key) ?? {
       id: `family:${key}`,
@@ -189,6 +186,12 @@ export function familyConnectorGeometry(group: FamilyConnection, rects: Map<stri
   }
   segment({ x: hubX, y: joinY }, { x: hubX, y: barY });
   segment({ x: Math.min(hubX, ...cx), y: barY }, { x: Math.max(hubX, ...cx), y: barY });
+  const sharedPaths = [...paths];
+  const childBranches = childRects.map((rect, i) => ({
+    child: group.children[i],
+    path: `M ${cx[i]} ${barY} L ${cx[i]} ${rect.y}`,
+    label: { x: cx[i], y: (barY + rect.y) / 2 },
+  }));
   childRects.forEach((rect, i) => segment({ x: cx[i], y: barY }, { x: cx[i], y: rect.y }));
   const junctions: Point[] = [];
   if (px.length > 1) junctions.push({ x: hubX, y: joinY });
@@ -202,5 +205,5 @@ export function familyConnectorGeometry(group: FamilyConnection, rects: Map<stri
   const uniqueJunctions = [...new Map(junctions.map((point) =>
     [JSON.stringify(point), point],
   )).values()];
-  return { paths, junctions: uniqueJunctions, label: { x: hubX, y: (joinY + barY) / 2 } };
+  return { paths, sharedPaths, childBranches, junctions: uniqueJunctions, label: { x: hubX, y: (joinY + barY) / 2 } };
 }

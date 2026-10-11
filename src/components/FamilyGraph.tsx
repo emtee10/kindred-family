@@ -178,15 +178,33 @@ export function FamilyGraph({
       ...familyPlan.groups.map((group) => {
         const relationship = group.relationships[0];
         const edge = byRelation.get(relationship.id)!;
+        const ranks = { confirmed: 0, probable: 1, possible: 2, speculative: 3 };
+        const leastCertain = (relationships: typeof group.relationships) => relationships.reduce((a, b) =>
+          ranks[confidence(a.confidence)] >= ranks[confidence(b.confidence)] ? a : b,
+        );
+        const uniform = group.relationships.every((r) =>
+          r.type === relationship.type && confidence(r.confidence) === confidence(relationship.confidence),
+        );
+        const childDetails = uniform ? undefined : Object.fromEntries(group.children.map((child) => {
+          const relationships = group.relationships.filter((r) => r.to === child);
+          const labels = [...new Set(relationships.map((r) => byRelation.get(r.id)!.label))];
+          return [child, {
+            style: byRelation.get(leastCertain(relationships).id)!.style,
+            label: labels.length === 1 ? labels[0] : relationships.map((r) =>
+              `${displayName(family.people.get(r.from)!)}: ${edgeLabel(r)} · ${confidence(r.confidence)}`,
+            ).join("; "),
+          }];
+        }));
         return {
           ...edge,
+          style: byRelation.get(leastCertain(group.relationships).id)!.style,
           id: group.id,
           source: group.parents[0], target: group.children[0],
           type: "familyConnector", markerEnd: undefined,
-          label: relationship.type === "biological_parent" && confidence(relationship.confidence) === "confirmed"
+          label: !uniform || (relationship.type === "biological_parent" && confidence(relationship.confidence) === "confirmed")
             ? undefined : edge.label,
           ariaLabel: group.relationships.map((r) => describe(r.id)).join(". "),
-          data: { group, description: group.relationships.map((r) => describe(r.id)).join(". ") },
+          data: { group, childDetails, description: group.relationships.map((r) => describe(r.id)).join(". ") },
         };
       }),
       ...familyPlan.partners.map(({ relationship, bridge, lane }) => {

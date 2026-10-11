@@ -33,6 +33,50 @@ const rects = (positions: Map<string, { x: number; y: number }>) =>
   }]));
 
 describe("family connectors", () => {
+  it.each(["single", "paired", "unpartnered"])("shares one sibling bar and stem for %s parents despite differing metadata", (kind) => {
+    const family = fixture([
+      ["root", "a", parent],
+      ["root", "b", "adoptive_parent", "probable"],
+      ["root", "c", "guardian", "possible"],
+      ...(kind === "single" ? [] : [
+        ["other", "a", parent],
+        ["other", "b", "step_parent"],
+        ["other", "c", parent, "speculative"],
+      ] as [string, string, Relationship["type"], Relationship["confidence"]?][]),
+      ...(kind === "paired" ? [["other", "root", "spouse"] as [string, string, Relationship["type"]]] : []),
+    ]);
+    const levels = new Map([["root", 0], ["a", 1], ["b", 1], ["c", 1]]);
+    if (kind !== "single") levels.set("other", 0);
+    const result = planFamilyConnections(family, levels, layoutFamily(family, "root", levels));
+    expect(result.groups).toHaveLength(1);
+    expect(result.direct).toEqual([]);
+    const group = result.groups[0];
+    expect(group.children).toEqual(["a", "b", "c"]);
+    const measured = rects(result.positions);
+    const geometry = familyConnectorGeometry(group, measured)!;
+    const bar = geometry.sharedPaths.at(-1)!.split(" ").map(Number);
+    const barY = bar[2];
+    expect(bar[5]).toBe(barY);
+    expect(geometry.childBranches).toHaveLength(3);
+    for (const branch of geometry.childBranches) {
+      const rect = measured.get(branch.child)!;
+      const x = rect.x + rect.width / 2;
+      expect(branch.path).toBe(`M ${x} ${barY} L ${x} ${rect.y}`);
+      expect(x).toBeGreaterThanOrEqual(bar[1]);
+      expect(x).toBeLessThanOrEqual(bar[4]);
+    }
+    const stem = geometry.sharedPaths.at(-2)!.split(" ").map(Number);
+    expect(stem[1]).toBe(stem[4]);
+    expect(stem[5]).toBe(barY);
+    expect(geometry.sharedPaths.filter((path) => {
+      const coords = path.split(" ").map(Number);
+      return coords[1] === coords[4] && coords[5] === barY;
+    })).toHaveLength(1);
+    expect(group.relationships.map((r) => r.id).sort()).toEqual(
+      family.data.relationships.filter((r) => r.type !== "spouse").map((r) => r.id).sort(),
+    );
+  });
+
   it.each(["spouse", "partner"] as const)("starts shared children at the visible %s line midpoint", (type) => {
     const family = fixture([
       ["other", "root", type],
@@ -124,7 +168,7 @@ describe("family connectors", () => {
     expect(result.groups[0].lane).not.toBe(result.groups[1].lane);
   });
 
-  it("preserves types and confidence, with individual connections for mixed parentage", () => {
+  it("preserves types and confidence within groups with mixed parentage", () => {
     const family = fixture([
       ["root", "adopted", "adoptive_parent"],
       ["root", "ward", "guardian", "possible"],
@@ -132,10 +176,12 @@ describe("family connectors", () => {
       ["root", "other", "partner"],
     ]);
     const result = plan(family);
-    expect(result.groups.map((group) => group.children)).toEqual([["adopted"], ["ward"]]);
+    expect(result.groups.map((group) => group.children)).toEqual([["adopted", "ward"], ["mixed"]]);
     expect(result.groups[0].relationships[0].type).toBe("adoptive_parent");
-    expect(result.groups[1].relationships[0].confidence).toBe("possible");
-    expect(result.direct.map((r) => r.to)).toEqual(["mixed", "mixed"]);
+    expect(result.groups[0].relationships[1].confidence).toBe("possible");
+    expect(result.groups[1].relationships.map((r) => r.type)).toEqual([parent, "step_parent"]);
+    expect(result.groups[1].union).toEqual(result.partners[0]);
+    expect(result.direct).toEqual([]);
     const represented = [
       ...result.groups.flatMap((group) => group.relationships),
       ...result.direct, ...result.partners.map((partner) => partner.relationship),
@@ -147,6 +193,8 @@ describe("family connectors", () => {
     const family = fixture([
       ["root", "a", parent], ["root", "b", "adoptive_parent"],
       ["root", "c", "step_parent"], ["root", "d", "guardian"],
+      ["hidden-a", "a", parent], ["hidden-b", "b", parent],
+      ["hidden-c", "c", parent], ["hidden-d", "d", parent],
       ["separate", "e", parent],
     ]);
     const levels = new Map([

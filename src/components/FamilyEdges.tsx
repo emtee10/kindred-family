@@ -15,7 +15,11 @@ import {
   type PartnerConnection,
 } from "../domain/family-connections";
 
-type ConnectorEdge = Edge<{ group: FamilyConnection; description: string }, "familyConnector">;
+type ConnectorEdge = Edge<{
+  group: FamilyConnection;
+  description: string;
+  childDetails?: Record<string, { style: Edge["style"]; label?: string }>;
+}, "familyConnector">;
 type PartnerEdge = Edge<{ partner: PartnerConnection; description: string; showLabel: boolean }, "familyPartner">;
 
 function usePersonRects() {
@@ -35,9 +39,17 @@ function FamilyConnector({ data, style, label, labelStyle, labelBgStyle }: EdgeP
   return (
     <g className="family-connector">
       <title>{data.description}</title>
-      {geometry.paths.map((path, index) => (
+      {geometry.sharedPaths.map((path, index) => (
         <BaseEdge key={index} path={path} style={style} interactionWidth={12} />
       ))}
+      {geometry.childBranches.map((branch) => {
+        const detail = data.childDetails?.[branch.child];
+        return <g key={branch.child}>
+          <BaseEdge path={branch.path} style={detail?.style ?? style} interactionWidth={12} />
+          {detail?.label && <EdgeText x={branch.label.x} y={branch.label.y} label={detail.label}
+            labelStyle={labelStyle} labelBgStyle={labelBgStyle} labelBgPadding={[5, 3]} />}
+        </g>;
+      })}
       {geometry.junctions.map((point, index) => (
         <circle key={index} cx={point.x} cy={point.y} r={2.5} fill={style?.stroke ?? "#9ba9a2"} />
       ))}
