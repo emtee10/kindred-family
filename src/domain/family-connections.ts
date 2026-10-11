@@ -1,5 +1,6 @@
 import type { Genealogy } from "./genealogy";
-import { confidence, isParent, type Relationship } from "./types";
+import { getSmoothStepPath, Position } from "@xyflow/react";
+import { isParent, type Relationship } from "./types";
 
 export const PERSON_WIDTH = 190;
 export const PERSON_HEIGHT = 95;
@@ -16,8 +17,10 @@ export type FamilyConnection = {
   childLevel: number;
   lane: number;
   childBridgeLanes: number;
+  union?: PartnerConnection;
 };
 export type PartnerConnection = { relationship: Relationship; bridge: boolean; lane: number };
+export type SupplementalConnection = { relationship: Relationship; lane: number };
 
 export function planFamilyConnections(
   family: Genealogy,
@@ -34,26 +37,36 @@ export function planFamilyConnections(
   }
   const groups = new Map<string, FamilyConnection>();
   const direct: Relationship[] = [];
+  const supplemental: SupplementalConnection[] = [];
   for (const [child, childLevel] of levels) {
-    const recorded = incoming.get(child) ?? [];
+    const allRecorded = incoming.get(child) ?? [];
+    const primary = allRecorded.filter((r) => r.type === "biological_parent" || r.type === "adoptive_parent");
+    // Step-parent and guardian roles supplement biological/adoptive parentage;
+    // they do not become additional members of that parental union.
+    const recorded = primary.length ? primary : allRecorded;
+    for (const relationship of primary.length ? allRecorded.filter((r) => !primary.includes(r)) : []) {
+      if (!levels.has(relationship.from)) continue;
+      if (levels.get(relationship.from)! + 1 === childLevel) {
+        supplemental.push({ relationship, lane: 0 });
+      } else {
+        direct.push(relationship);
+      }
+    }
     const visible = recorded.filter((r) => levels.has(r.from));
     if (!visible.length) continue;
     const first = visible[0];
     const parentLevel = levels.get(first.from)!;
-    // Never merge different kinds/confidence levels or route a family bar
-    // across another generation. Those connections retain individual labels.
+    // Conflicting generation assignments still require individual routing.
     if (parentLevel + 1 !== childLevel || visible.some((r) =>
-      levels.get(r.from) !== parentLevel || r.type !== first.type ||
-      confidence(r.confidence) !== confidence(first.confidence),
+      levels.get(r.from) !== parentLevel,
     )) {
       direct.push(...visible);
       continue;
     }
     // Include hidden parents in the key: half-siblings must not become full
     // siblings just because one of their parents is outside the current view.
-    const signature = recorded.map((r) =>
-      [r.from, r.type, confidence(r.confidence)],
-    ).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    // Relationship metadata belongs to the branches, not the family identity.
+    const signature = [...new Set(recorded.map((r) => r.from))].sort();
     const key = JSON.stringify([parentLevel, childLevel, signature]);
     const group = groups.get(key) ?? {
       id: `family:${key}`,
@@ -87,6 +100,12 @@ export function planFamilyConnections(
     }
     laneCounts.set(level, ends.length);
   }
+  const supplementalLanes = new Map<number, number>();
+  for (const connection of supplemental) {
+    const level = levels.get(connection.relationship.to)!;
+    connection.lane = supplementalLanes.get(level) ?? 0;
+    supplementalLanes.set(level, connection.lane + 1);
+  }
 
   const partners: PartnerConnection[] = [];
   const bridges = new Map<number, number>();
@@ -108,6 +127,15 @@ export function planFamilyConnections(
   }
   for (const group of connections) {
     group.childBridgeLanes = bridges.get(group.childLevel) ?? 0;
+    const unionParents = new Set((incoming.get(group.children[0]) ?? [])
+      .filter((r) => r.type === "biological_parent" || r.type === "adoptive_parent")
+      .map((r) => r.from));
+    if (group.parents.length === 2 &&
+      (unionParents.size === 0 || unionParents.size === 2)) {
+      group.union = partners.find(({ relationship }) =>
+        group.parents.includes(relationship.from) && group.parents.includes(relationship.to),
+      );
+    }
   }
 
   // Dense rows get actual routing space, rather than overlapping more lines
@@ -119,14 +147,65 @@ export function planFamilyConnections(
     const previous = sortedLevels[i - 1];
     const gap = Math.max(210, PERSON_HEIGHT + 56 +
       (laneCounts.get(level) ?? 0) * TRACK_SPACING * 2 +
-      (bridges.get(level) ?? 0) * TRACK_SPACING);
+      (bridges.get(level) ?? 0) * TRACK_SPACING +
+      ((supplementalLanes.get(level) ?? 0) + (supplementalLanes.get(previous) ?? 0)) * TRACK_SPACING);
     ys.set(level, i === 0 ? 0 : ys.get(previous)! + gap * (level - previous));
   }
   const rootY = ys.get(0) ?? 0;
   const routedPositions = new Map([...positions].map(([id, position]) => [id, {
     x: position.x, y: ys.get(levels.get(id)!)! - rootY,
   }]));
-  return { groups: connections, direct, partners, positions: routedPositions };
+  return { groups: connections, direct, supplemental, partners, positions: routedPositions };
+}
+
+export function supplementalConnectorGeometry(connection: SupplementalConnection, rects: Map<string, PersonRect>) {
+  const from = rects.get(connection.relationship.from);
+  const to = rects.get(connection.relationship.to);
+  if (!from || !to) return null;
+  const sourceX = from.x + from.width / 2;
+  const right = sourceX >= to.x + to.width / 2;
+  const direction = right ? 1 : -1;
+  const band = [...rects.values()].filter((rect) =>
+    rect.y < to.y + to.height && rect.y + rect.height > from.y,
+  );
+  const parentRow = band.filter((rect) => rect.y < to.y);
+  const childRow = band.filter((rect) => rect.y >= to.y);
+  const departureY = Math.max(...parentRow.map((rect) => rect.y + rect.height)) + 20 + connection.lane * TRACK_SPACING;
+  const arrivalY = Math.max(...childRow.map((rect) => rect.y + rect.height)) + 24 + connection.lane * TRACK_SPACING;
+  const railX = (right ? Math.max(...band.map((rect) => rect.x + rect.width)) : Math.min(...band.map((rect) => rect.x))) +
+    direction * (24 + connection.lane * TRACK_SPACING);
+  const targetX = to.x + (right ? to.width : 0);
+  const approachX = targetX + direction * 12;
+  const targetY = to.y + to.height / 2;
+  const path = `M ${sourceX} ${from.y + from.height} L ${sourceX} ${departureY} L ${railX} ${departureY} L ${railX} ${arrivalY} L ${approachX} ${arrivalY} L ${approachX} ${targetY} L ${targetX} ${targetY}`;
+  return { path, label: { x: (sourceX + railX) / 2, y: departureY }, targetSide: right ? "right" : "left" };
+}
+
+export function partnerConnectorGeometry(partner: PartnerConnection, rects: Map<string, PersonRect>) {
+  const from = rects.get(partner.relationship.from);
+  const to = rects.get(partner.relationship.to);
+  if (!from || !to) return null;
+  const fromLeft = from.x < to.x;
+  const sourceX = from.x + (fromLeft ? from.width : 0);
+  const targetX = to.x + (fromLeft ? 0 : to.width);
+  const sourceY = from.y + from.height / 2;
+  const targetY = to.y + to.height / 2;
+  let [path, x, y] = getSmoothStepPath({
+    sourceX, sourceY, targetX, targetY,
+    sourcePosition: fromLeft ? Position.Right : Position.Left,
+    targetPosition: fromLeft ? Position.Left : Position.Right,
+    borderRadius: 6,
+  });
+  if (partner.bridge) {
+    const bridgeY = Math.min(from.y, to.y) - 18 - partner.lane * TRACK_SPACING;
+    const direction = fromLeft ? 1 : -1;
+    const fromX = sourceX + direction * 12;
+    const toX = targetX - direction * 12;
+    path = `M ${sourceX} ${sourceY} L ${fromX} ${sourceY} L ${fromX} ${bridgeY} L ${toX} ${bridgeY} L ${toX} ${targetY} L ${targetX} ${targetY}`;
+    x = (fromX + toX) / 2;
+    y = bridgeY;
+  }
+  return { path, midpoint: { x, y } };
 }
 
 export function familyConnectorGeometry(group: FamilyConnection, rects: Map<string, PersonRect>) {
@@ -137,25 +216,34 @@ export function familyConnectorGeometry(group: FamilyConnection, rects: Map<stri
   const childRects = children as PersonRect[];
   const px = parentRects.map((rect) => rect.x + rect.width / 2);
   const cx = childRects.map((rect) => rect.x + rect.width / 2);
-  const hubX = px.reduce((sum, x) => sum + x, 0) / px.length;
-  const joinY = Math.max(...parentRects.map((rect) => rect.y + rect.height)) + 20 + group.lane * TRACK_SPACING;
+  const union = group.union ? partnerConnectorGeometry(group.union, rects) : null;
+  const hubX = union?.midpoint.x ?? px.reduce((sum, x) => sum + x, 0) / px.length;
+  const joinY = union?.midpoint.y ?? Math.max(...parentRects.map((rect) => rect.y + rect.height)) + 20 + group.lane * TRACK_SPACING;
   const barY = Math.min(...childRects.map((rect) => rect.y)) - 24 -
     (group.lane + group.childBridgeLanes) * TRACK_SPACING;
   const paths: string[] = [];
   const segment = (from: Point, to: Point) => {
     if (from.x !== to.x || from.y !== to.y) paths.push(`M ${from.x} ${from.y} L ${to.x} ${to.y}`);
   };
-  parentRects.forEach((rect, i) => segment(
-    { x: px[i], y: rect.y + rect.height }, { x: px[i], y: joinY },
-  ));
-  segment({ x: Math.min(...px), y: joinY }, { x: Math.max(...px), y: joinY });
+  if (!union) {
+    parentRects.forEach((rect, i) => segment(
+      { x: px[i], y: rect.y + rect.height }, { x: px[i], y: joinY },
+    ));
+    segment({ x: Math.min(...px), y: joinY }, { x: Math.max(...px), y: joinY });
+  }
   segment({ x: hubX, y: joinY }, { x: hubX, y: barY });
   segment({ x: Math.min(hubX, ...cx), y: barY }, { x: Math.max(hubX, ...cx), y: barY });
+  const sharedPaths = [...paths];
+  const childBranches = childRects.map((rect, i) => ({
+    child: group.children[i],
+    path: `M ${cx[i]} ${barY} L ${cx[i]} ${rect.y}`,
+    label: { x: cx[i], y: (barY + rect.y) / 2 },
+  }));
   childRects.forEach((rect, i) => segment({ x: cx[i], y: barY }, { x: cx[i], y: rect.y }));
   const junctions: Point[] = [];
   if (px.length > 1) junctions.push({ x: hubX, y: joinY });
   if (cx.length > 1) junctions.push({ x: hubX, y: barY });
-  for (const x of px) {
+  for (const x of union ? [] : px) {
     if (x > Math.min(...px) && x < Math.max(...px)) junctions.push({ x, y: joinY });
   }
   for (const x of cx) {
@@ -164,5 +252,5 @@ export function familyConnectorGeometry(group: FamilyConnection, rects: Map<stri
   const uniqueJunctions = [...new Map(junctions.map((point) =>
     [JSON.stringify(point), point],
   )).values()];
-  return { paths, junctions: uniqueJunctions, label: { x: hubX, y: (joinY + barY) / 2 } };
+  return { paths, sharedPaths, childBranches, junctions: uniqueJunctions, label: { x: hubX, y: (joinY + barY) / 2 } };
 }

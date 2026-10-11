@@ -96,7 +96,10 @@ export function layoutFamily(
   for (const [id, level] of levels) {
     // Conflicting roles/cycles can put a recorded parent on the same or a lower
     // row. Preserve familyMembers' generation assignments in those cases.
-    const visibleParents = new Set(family.parents(id).filter(
+    const recorded = family.data.relationships.filter((r) => r.to === id &&
+      (r.type === "biological_parent" || r.type === "adoptive_parent"));
+    const parentIds = recorded.length ? recorded.map((r) => r.from) : family.parents(id);
+    const visibleParents = new Set(parentIds.filter(
       (parent) => levels.has(parent) && levels.get(parent)! < level,
     ));
     parents.set(id, visibleParents);

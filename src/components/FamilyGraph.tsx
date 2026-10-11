@@ -175,18 +175,50 @@ export function FamilyGraph({
       ...familyPlan.direct.map((r) => ({
         ...byRelation.get(r.id)!, id: `relation:${JSON.stringify(r.id)}`,
       })),
+      ...familyPlan.supplemental.map((connection) => {
+        const r = connection.relationship;
+        const edge = byRelation.get(r.id)!;
+        const from = familyPlan.positions.get(r.from)!;
+        const to = familyPlan.positions.get(r.to)!;
+        return {
+          ...edge, id: `relation:${JSON.stringify(r.id)}`,
+          type: "familySupplemental", markerEnd: undefined,
+          targetHandle: from.x >= to.x ? "partner-right-target" : "partner-left-target",
+          style: { ...edge.style, stroke: "#b18454",
+            strokeDasharray: confidence(r.confidence) === "confirmed" ? "7 5" : edge.style.strokeDasharray },
+          data: { connection, description: describe(r.id) },
+        };
+      }),
       ...familyPlan.groups.map((group) => {
         const relationship = group.relationships[0];
         const edge = byRelation.get(relationship.id)!;
+        const ranks = { confirmed: 0, probable: 1, possible: 2, speculative: 3 };
+        const leastCertain = (relationships: typeof group.relationships) => relationships.reduce((a, b) =>
+          ranks[confidence(a.confidence)] >= ranks[confidence(b.confidence)] ? a : b,
+        );
+        const uniform = group.relationships.every((r) =>
+          r.type === relationship.type && confidence(r.confidence) === confidence(relationship.confidence),
+        );
+        const childDetails = uniform ? undefined : Object.fromEntries(group.children.map((child) => {
+          const relationships = group.relationships.filter((r) => r.to === child);
+          const labels = [...new Set(relationships.map((r) => byRelation.get(r.id)!.label))];
+          return [child, {
+            style: byRelation.get(leastCertain(relationships).id)!.style,
+            label: labels.length === 1 ? labels[0] : relationships.map((r) =>
+              `${displayName(family.people.get(r.from)!)}: ${edgeLabel(r)} · ${confidence(r.confidence)}`,
+            ).join("; "),
+          }];
+        }));
         return {
           ...edge,
+          style: byRelation.get(leastCertain(group.relationships).id)!.style,
           id: group.id,
           source: group.parents[0], target: group.children[0],
           type: "familyConnector", markerEnd: undefined,
-          label: relationship.type === "biological_parent" && confidence(relationship.confidence) === "confirmed"
+          label: !uniform || (relationship.type === "biological_parent" && confidence(relationship.confidence) === "confirmed")
             ? undefined : edge.label,
           ariaLabel: group.relationships.map((r) => describe(r.id)).join(". "),
-          data: { group, description: group.relationships.map((r) => describe(r.id)).join(". ") },
+          data: { group, childDetails, description: group.relationships.map((r) => describe(r.id)).join(". ") },
         };
       }),
       ...familyPlan.partners.map(({ relationship, bridge, lane }) => {
@@ -197,7 +229,7 @@ export function FamilyGraph({
           type: "familyPartner",
           sourceHandle: fromLeft ? "partner-right-source" : "partner-left-source",
           targetHandle: fromLeft ? "partner-left-target" : "partner-right-target",
-          data: { bridge, lane, description: describe(relationship.id),
+          data: { partner: { relationship, bridge, lane }, description: describe(relationship.id),
             showLabel: confidence(relationship.confidence) !== "confirmed" },
         };
       }),
@@ -235,7 +267,13 @@ export function FamilyGraph({
         );
       family
         .parents(root)
-        .forEach((id) => captions.set(id, "Parent / guardian"));
+        .forEach((id) => {
+          const roles = { biological_parent: "Biological parent", adoptive_parent: "Adoptive parent",
+            step_parent: "Step-parent", guardian: "Guardian" };
+          const labels = family.data.relationships.filter((r) => r.from === id && r.to === root && isParent(r))
+            .map((r) => roles[r.type as keyof typeof roles]);
+          captions.set(id, [...new Set(labels)].join(" / "));
+        });
       family
         .partners(root)
         .forEach((id) => captions.set(id, "Spouse / partner"));
@@ -368,6 +406,10 @@ export function FamilyGraph({
           <i className="dashed" />
           Uncertain <ConfidenceBadge value="possible" />
         </span>
+        {!!familyPlan?.supplemental.length && <span>
+          <i style={{ borderTopColor: "#b18454", borderTopStyle: "dashed" }} />
+          Step-parent / guardian
+        </span>}
       </div>
     </div>
   );
