@@ -7,6 +7,7 @@ import {
   familyConnectorGeometry,
   partnerConnectorGeometry,
   planFamilyConnections,
+  supplementalConnectorGeometry,
   PERSON_HEIGHT,
   PERSON_WIDTH,
   type PersonRect,
@@ -35,6 +36,48 @@ const rects = (positions: Map<string, { x: number; y: number }>) =>
   }]));
 
 describe("family connectors", () => {
+  it.each([false, true])("separates Sylvie’s step-parent connections in Finn’s family view (extended=%s)", (extended) => {
+    const family = new Genealogy(validateFamily(
+      JSON.parse(readFileSync("private-data/people.json", "utf8")),
+      JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+    ));
+    const levels = family.familyMembers("finn", extended);
+    const result = plan(family, "finn", extended);
+    const group = result.groups.find((group) => group.children.includes("finn"))!;
+    expect(group.parents).toEqual(["theo", "celia"]);
+    expect(group.children).toEqual(["finn", "wren"]);
+    expect(group.union?.relationship.id).toBe("r12");
+    expect(result.supplemental.filter((edge) => edge.relationship.from === "sylvie")
+      .map((edge) => edge.relationship.id)).toEqual(["r25", "r26"]);
+    expect(result.groups.some((group) => group.parents.includes("sylvie") && group.children.includes("finn"))).toBe(false);
+    const measured = rects(result.positions);
+    const geometry = familyConnectorGeometry(group, measured)!;
+    const midpoint = partnerConnectorGeometry(group.union!, measured)!.midpoint;
+    expect(geometry.sharedPaths).toHaveLength(2);
+    expect(geometry.sharedPaths[0]).toMatch(new RegExp(`^M ${midpoint.x} ${midpoint.y} L ${midpoint.x} `));
+    for (const connection of result.supplemental) {
+      const step = supplementalConnectorGeometry(connection, measured)!;
+      const target = measured.get(connection.relationship.to)!;
+      expect(step.path).toMatch(new RegExp(`L ${target.x + (step.targetSide === "right" ? target.width : 0)} ${target.y + target.height / 2}$`));
+      const points = [...step.path.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i];
+        for (const rect of measured.values()) {
+          const crosses = a.x === b.x
+            ? a.x > rect.x && a.x < rect.x + rect.width && Math.max(a.y, b.y) > rect.y && Math.min(a.y, b.y) < rect.y + rect.height
+            : a.y > rect.y && a.y < rect.y + rect.height && Math.max(a.x, b.x) > rect.x && Math.min(a.x, b.x) < rect.x + rect.width;
+          expect(crosses).toBe(false);
+        }
+      }
+    }
+    const represented = [
+      ...result.groups.flatMap((group) => group.relationships), ...result.direct,
+      ...result.supplemental.map((edge) => edge.relationship), ...result.partners.map((edge) => edge.relationship),
+    ];
+    expect(represented.map((r) => r.id).sort()).toEqual(family.data.relationships
+      .filter((r) => levels.has(r.from) && levels.has(r.to)).map((r) => r.id).sort());
+  });
+
   it.each([false, true])("connects Celia and Theo to Finn and Wren through their union (extended=%s)", (extended) => {
     const family = new Genealogy(validateFamily(
       JSON.parse(readFileSync("private-data/people.json", "utf8")),
@@ -69,19 +112,19 @@ describe("family connectors", () => {
     expect(result.groups[0].union).toEqual(result.partners[0]);
     levels.set("extra", 0);
     const visible = planFamilyConnections(family, levels, layoutFamily(family, "root", levels));
-    expect(visible.groups[0].parents).toEqual(["root", "other", "extra"]);
-    expect(visible.groups[0].union).toBeUndefined();
-    expect(visible.groups[0].relationships.filter((r) => r.from === "extra")).toHaveLength(2);
+    expect(visible.groups[0].parents).toEqual(["root", "other"]);
+    expect(visible.groups[0].union).toEqual(visible.partners[0]);
+    expect(visible.supplemental.map((edge) => edge.relationship.from)).toEqual(["extra", "extra"]);
   });
 
   it.each(["single", "paired", "unpartnered"])("shares one sibling bar and stem for %s parents despite differing metadata", (kind) => {
     const family = fixture([
       ["root", "a", parent],
       ["root", "b", "adoptive_parent", "probable"],
-      ["root", "c", "guardian", "possible"],
+      ["root", "c", "adoptive_parent", "possible"],
       ...(kind === "single" ? [] : [
         ["other", "a", parent],
-        ["other", "b", "step_parent"],
+        ["other", "b", "adoptive_parent"],
         ["other", "c", parent, "speculative"],
       ] as [string, string, Relationship["type"], Relationship["confidence"]?][]),
       ...(kind === "paired" ? [["other", "root", "spouse"] as [string, string, Relationship["type"]]] : []),
@@ -217,15 +260,17 @@ describe("family connectors", () => {
       ["root", "other", "partner"],
     ]);
     const result = plan(family);
-    expect(result.groups.map((group) => group.children)).toEqual([["adopted", "ward"], ["mixed"]]);
+    expect(result.groups.map((group) => group.children)).toEqual([["adopted", "ward", "mixed"]]);
     expect(result.groups[0].relationships[0].type).toBe("adoptive_parent");
     expect(result.groups[0].relationships[1].confidence).toBe("possible");
-    expect(result.groups[1].relationships.map((r) => r.type)).toEqual([parent, "step_parent"]);
-    expect(result.groups[1].union).toEqual(result.partners[0]);
+    expect(result.groups[0].relationships[2].type).toBe(parent);
+    expect(result.groups[0].union).toBeUndefined();
+    expect(result.supplemental.map((edge) => edge.relationship.type)).toEqual(["step_parent"]);
     expect(result.direct).toEqual([]);
     const represented = [
       ...result.groups.flatMap((group) => group.relationships),
-      ...result.direct, ...result.partners.map((partner) => partner.relationship),
+      ...result.direct, ...result.supplemental.map((edge) => edge.relationship),
+      ...result.partners.map((partner) => partner.relationship),
     ];
     expect(represented.map((r) => r.id).sort()).toEqual(family.data.relationships.map((r) => r.id).sort());
   });
@@ -233,7 +278,7 @@ describe("family connectors", () => {
   it("reuses routing lanes for disjoint branches and expands dense generations", () => {
     const family = fixture([
       ["root", "a", parent], ["root", "b", "adoptive_parent"],
-      ["root", "c", "step_parent"], ["root", "d", "guardian"],
+      ["root", "c", parent], ["root", "d", parent],
       ["hidden-a", "a", parent], ["hidden-b", "b", parent],
       ["hidden-c", "c", parent], ["hidden-d", "d", parent],
       ["separate", "e", parent],

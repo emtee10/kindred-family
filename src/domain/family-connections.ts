@@ -20,6 +20,7 @@ export type FamilyConnection = {
   union?: PartnerConnection;
 };
 export type PartnerConnection = { relationship: Relationship; bridge: boolean; lane: number };
+export type SupplementalConnection = { relationship: Relationship; lane: number };
 
 export function planFamilyConnections(
   family: Genealogy,
@@ -36,8 +37,21 @@ export function planFamilyConnections(
   }
   const groups = new Map<string, FamilyConnection>();
   const direct: Relationship[] = [];
+  const supplemental: SupplementalConnection[] = [];
   for (const [child, childLevel] of levels) {
-    const recorded = incoming.get(child) ?? [];
+    const allRecorded = incoming.get(child) ?? [];
+    const primary = allRecorded.filter((r) => r.type === "biological_parent" || r.type === "adoptive_parent");
+    // Step-parent and guardian roles supplement biological/adoptive parentage;
+    // they do not become additional members of that parental union.
+    const recorded = primary.length ? primary : allRecorded;
+    for (const relationship of primary.length ? allRecorded.filter((r) => !primary.includes(r)) : []) {
+      if (!levels.has(relationship.from)) continue;
+      if (levels.get(relationship.from)! + 1 === childLevel) {
+        supplemental.push({ relationship, lane: 0 });
+      } else {
+        direct.push(relationship);
+      }
+    }
     const visible = recorded.filter((r) => levels.has(r.from));
     if (!visible.length) continue;
     const first = visible[0];
@@ -86,6 +100,12 @@ export function planFamilyConnections(
     }
     laneCounts.set(level, ends.length);
   }
+  const supplementalLanes = new Map<number, number>();
+  for (const connection of supplemental) {
+    const level = levels.get(connection.relationship.to)!;
+    connection.lane = supplementalLanes.get(level) ?? 0;
+    supplementalLanes.set(level, connection.lane + 1);
+  }
 
   const partners: PartnerConnection[] = [];
   const bridges = new Map<number, number>();
@@ -107,15 +127,11 @@ export function planFamilyConnections(
   }
   for (const group of connections) {
     group.childBridgeLanes = bridges.get(group.childLevel) ?? 0;
-    // An off-screen step-parent/guardian is not another member of the visible
-    // parental union. Hidden biological/adoptive parents still count, so a
-    // partial view of a larger parent set cannot imply a two-parent union.
     const unionParents = new Set((incoming.get(group.children[0]) ?? [])
-      .filter((r) => group.parents.includes(r.from) ||
-        r.type === "biological_parent" || r.type === "adoptive_parent")
+      .filter((r) => r.type === "biological_parent" || r.type === "adoptive_parent")
       .map((r) => r.from));
     if (group.parents.length === 2 &&
-      unionParents.size === 2) {
+      (unionParents.size === 0 || unionParents.size === 2)) {
       group.union = partners.find(({ relationship }) =>
         group.parents.includes(relationship.from) && group.parents.includes(relationship.to),
       );
@@ -131,14 +147,38 @@ export function planFamilyConnections(
     const previous = sortedLevels[i - 1];
     const gap = Math.max(210, PERSON_HEIGHT + 56 +
       (laneCounts.get(level) ?? 0) * TRACK_SPACING * 2 +
-      (bridges.get(level) ?? 0) * TRACK_SPACING);
+      (bridges.get(level) ?? 0) * TRACK_SPACING +
+      ((supplementalLanes.get(level) ?? 0) + (supplementalLanes.get(previous) ?? 0)) * TRACK_SPACING);
     ys.set(level, i === 0 ? 0 : ys.get(previous)! + gap * (level - previous));
   }
   const rootY = ys.get(0) ?? 0;
   const routedPositions = new Map([...positions].map(([id, position]) => [id, {
     x: position.x, y: ys.get(levels.get(id)!)! - rootY,
   }]));
-  return { groups: connections, direct, partners, positions: routedPositions };
+  return { groups: connections, direct, supplemental, partners, positions: routedPositions };
+}
+
+export function supplementalConnectorGeometry(connection: SupplementalConnection, rects: Map<string, PersonRect>) {
+  const from = rects.get(connection.relationship.from);
+  const to = rects.get(connection.relationship.to);
+  if (!from || !to) return null;
+  const sourceX = from.x + from.width / 2;
+  const right = sourceX >= to.x + to.width / 2;
+  const direction = right ? 1 : -1;
+  const band = [...rects.values()].filter((rect) =>
+    rect.y < to.y + to.height && rect.y + rect.height > from.y,
+  );
+  const parentRow = band.filter((rect) => rect.y < to.y);
+  const childRow = band.filter((rect) => rect.y >= to.y);
+  const departureY = Math.max(...parentRow.map((rect) => rect.y + rect.height)) + 20 + connection.lane * TRACK_SPACING;
+  const arrivalY = Math.max(...childRow.map((rect) => rect.y + rect.height)) + 24 + connection.lane * TRACK_SPACING;
+  const railX = (right ? Math.max(...band.map((rect) => rect.x + rect.width)) : Math.min(...band.map((rect) => rect.x))) +
+    direction * (24 + connection.lane * TRACK_SPACING);
+  const targetX = to.x + (right ? to.width : 0);
+  const approachX = targetX + direction * 12;
+  const targetY = to.y + to.height / 2;
+  const path = `M ${sourceX} ${from.y + from.height} L ${sourceX} ${departureY} L ${railX} ${departureY} L ${railX} ${arrivalY} L ${approachX} ${arrivalY} L ${approachX} ${targetY} L ${targetX} ${targetY}`;
+  return { path, label: { x: (sourceX + railX) / 2, y: departureY }, targetSide: right ? "right" : "left" };
 }
 
 export function partnerConnectorGeometry(partner: PartnerConnection, rects: Map<string, PersonRect>) {

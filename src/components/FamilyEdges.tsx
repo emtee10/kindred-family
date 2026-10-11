@@ -8,11 +8,13 @@ import {
 import {
   familyConnectorGeometry,
   partnerConnectorGeometry,
+  supplementalConnectorGeometry,
   PERSON_HEIGHT,
   PERSON_WIDTH,
   type FamilyConnection,
   type PersonRect,
   type PartnerConnection,
+  type SupplementalConnection,
 } from "../domain/family-connections";
 
 type ConnectorEdge = Edge<{
@@ -21,6 +23,7 @@ type ConnectorEdge = Edge<{
   childDetails?: Record<string, { style: Edge["style"]; label?: string }>;
 }, "familyConnector">;
 type PartnerEdge = Edge<{ partner: PartnerConnection; description: string; showLabel: boolean }, "familyPartner">;
+type SupplementalEdge = Edge<{ connection: SupplementalConnection; description: string }, "familySupplemental">;
 
 function usePersonRects() {
   const nodes = useNodes();
@@ -80,4 +83,19 @@ function FamilyPartner({
   );
 }
 
-export const familyEdgeTypes = { familyConnector: FamilyConnector, familyPartner: FamilyPartner };
+function FamilySupplemental({ data, style, label, labelStyle, labelBgStyle }: EdgeProps<SupplementalEdge>) {
+  const rects = usePersonRects();
+  if (!data) return null;
+  const geometry = supplementalConnectorGeometry(data.connection, rects);
+  if (!geometry) return null;
+  return <g className="family-supplemental">
+    <title>{data.description}</title>
+    <BaseEdge path={geometry.path} style={style} interactionWidth={12} />
+    {label && <EdgeText x={geometry.label.x} y={geometry.label.y} label={label}
+      labelStyle={labelStyle} labelBgStyle={labelBgStyle} labelBgPadding={[5, 3]} />}
+  </g>;
+}
+
+export const familyEdgeTypes = {
+  familyConnector: FamilyConnector, familyPartner: FamilyPartner, familySupplemental: FamilySupplemental,
+};

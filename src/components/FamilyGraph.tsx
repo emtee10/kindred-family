@@ -175,6 +175,20 @@ export function FamilyGraph({
       ...familyPlan.direct.map((r) => ({
         ...byRelation.get(r.id)!, id: `relation:${JSON.stringify(r.id)}`,
       })),
+      ...familyPlan.supplemental.map((connection) => {
+        const r = connection.relationship;
+        const edge = byRelation.get(r.id)!;
+        const from = familyPlan.positions.get(r.from)!;
+        const to = familyPlan.positions.get(r.to)!;
+        return {
+          ...edge, id: `relation:${JSON.stringify(r.id)}`,
+          type: "familySupplemental", markerEnd: undefined,
+          targetHandle: from.x >= to.x ? "partner-right-target" : "partner-left-target",
+          style: { ...edge.style, stroke: "#b18454",
+            strokeDasharray: confidence(r.confidence) === "confirmed" ? "7 5" : edge.style.strokeDasharray },
+          data: { connection, description: describe(r.id) },
+        };
+      }),
       ...familyPlan.groups.map((group) => {
         const relationship = group.relationships[0];
         const edge = byRelation.get(relationship.id)!;
@@ -253,7 +267,13 @@ export function FamilyGraph({
         );
       family
         .parents(root)
-        .forEach((id) => captions.set(id, "Parent / guardian"));
+        .forEach((id) => {
+          const roles = { biological_parent: "Biological parent", adoptive_parent: "Adoptive parent",
+            step_parent: "Step-parent", guardian: "Guardian" };
+          const labels = family.data.relationships.filter((r) => r.from === id && r.to === root && isParent(r))
+            .map((r) => roles[r.type as keyof typeof roles]);
+          captions.set(id, [...new Set(labels)].join(" / "));
+        });
       family
         .partners(root)
         .forEach((id) => captions.set(id, "Spouse / partner"));
@@ -386,6 +406,10 @@ export function FamilyGraph({
           <i className="dashed" />
           Uncertain <ConfidenceBadge value="possible" />
         </span>
+        {!!familyPlan?.supplemental.length && <span>
+          <i style={{ borderTopColor: "#b18454", borderTopStyle: "dashed" }} />
+          Step-parent / guardian
+        </span>}
       </div>
     </div>
   );
