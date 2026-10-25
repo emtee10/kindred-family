@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Genealogy, displayName, edgeLabel } from "./domain/genealogy";
 import { kinship } from "./domain/kinship";
+import { layoutNetwork } from "./domain/network-layout";
 import type { ArchiveConfig } from "./data/types";
 import { signOut } from "next-auth/react";
 import { type View } from "./components/FamilyGraph";
@@ -18,6 +19,7 @@ const FamilyGraph = lazy(() =>
     default: module.FamilyGraph,
   })),
 );
+const NetworkGraph = lazy(() => import("./components/NetworkGraph").then((module) => ({ default: module.NetworkGraph })));
 
 const views: { id: View; name: string; icon: string; description: string }[] = [
   {
@@ -53,6 +55,12 @@ const views: { id: View; name: string; icon: string; description: string }[] = [
     name: "Relationships",
     icon: "path",
     description: "Find the connection. Trace the path between any two people.",
+  },
+  {
+    id: "network",
+    name: "Network",
+    icon: "network",
+    description: "See every connection. Explore rings of relationship distance around one person.",
   },
 ];
 export default function App({ family, config }: { family: Genealogy; config: ArchiveConfig }) {
@@ -105,6 +113,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
   );
   const label = view === "path" ? kinship(family, root, target) : null;
   const path = view === "path" ? family.path(root, target) : null;
+  const network = useMemo(() => view === "network" ? layoutNetwork(family, root) : null, [family, root, view]);
   return (
     <div className="app">
       <header className="site-header">
@@ -324,7 +333,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               <h1>
                 {view === "path" ? "Find a connection" : displayName(person)}
                 <span>
-                  {view === "path"
+                  {view === "network"
+                    ? "Select a person to re-centre and see their profile"
+                    : view === "path"
                     ? "Every connection has a path."
                     : "Follow a branch. Get to know the family."}
                 </span>
@@ -448,7 +459,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   {views.find((v) => v.id === view)!.name}
                 </span>
                 <small>
-                  {view === "path"
+                  {view === "network"
+                    ? "Select a person to re-centre the network"
+                    : view === "path"
                     ? "Select a person to see their profile"
                     : "Select a person to explore their family"}
                 </small>
@@ -460,7 +473,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   </div>
                 }
               >
-                <FamilyGraph
+                {view === "network" ? <NetworkGraph family={family} root={root} onSelect={selectNode} /> : <FamilyGraph
                   family={family}
                   root={root}
                   selected={selected}
@@ -468,12 +481,14 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   view={view}
                   generations={generations}
                   onSelect={selectNode}
-                />
+                />}
               </Suspense>
               <div className="graph-footer">
                 <span>Drag to pan · Scroll or pinch to zoom</span>
                 <span>
-                  {view === "family"
+                  {view === "network"
+                    ? "Each ring is one more relationship edge from the centre."
+                    : view === "family"
                     ? "Parents, children, partners, and siblings."
                     : view === "extended"
                       ? "Immediate family plus grandparents, grandchildren, aunts, uncles, nieces, and nephews."
@@ -492,7 +507,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
             <p>A list for easy keyboard navigation.</p>
             <div role="list">
               {[
-                ...(view === "family"
+                ...(view === "network"
+                  ? network!.distances.keys()
+                  : view === "family"
                   ? family.immediate(root)
                   : view === "extended"
                     ? family.extended(root)

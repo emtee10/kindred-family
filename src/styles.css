@@ -802,6 +802,40 @@ select {
   border: 2px solid #62825c;
   background: #f2f6eb;
 }
+.network-person {
+  width: 132px;
+  height: 44px;
+  padding: 5px 9px;
+  border: 1px solid #cbd5c5;
+  border-radius: 7px;
+  background: white;
+  text-align: center;
+  color: #334b3c;
+}
+.network-person.root {
+  border: 2px solid #62825c;
+  background: #f2f6eb;
+}
+.network-person strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 14px;
+}
+.network-person:has(small) strong { -webkit-line-clamp: 1; }
+.network-person small { display: block; font-size: 10px; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.network-canvas .react-flow__handle { opacity: 0; }
+.network-rings { overflow: visible; position: absolute; pointer-events: none; }
+.network-rings circle { fill: none; stroke: #84967a; stroke-opacity: 0.18; stroke-dasharray: 4 7; }
+.network-rings text { fill: #74846a; font-size: 11px; }
+.network-legend { padding: 10px 14px; background: #fffdf6; border-top: 1px solid var(--border); color: #52634b; }
+.network-legend p { font-size: 11px; margin: 0 0 7px; }
+.network-legend > div { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.network-legend span { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.network-legend svg { flex-shrink: 0; }
+.network-legend p[role="status"] { margin: 9px 0 0; }
 .graph-person strong {
   font-size: 13px;
   font-weight: 600;
