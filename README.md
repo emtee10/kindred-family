@@ -9,7 +9,7 @@ A calm, read-only family archive built with Next.js App Router, React, and TypeS
 ## What works in V1
 
 - Responsive home screen with search across current, birth, former, alternate, and nickname entries.
-- Immediate-family, bounded ancestor, bounded descendant, and shortest relationship-path views.
+- Immediate-family, extended-family, bounded ancestor, bounded descendant, shortest relationship-path, and radial Network views.
 - Pan, zoom, touch controls, keyboard navigation, and a companion list of graph people.
 - Structured profiles, life events, name changes, optional portraits, and initials for missing photos.
 - Accessible uncertainty badges and labeled dashed relationship edges.

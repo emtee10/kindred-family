@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Genealogy, displayName, edgeLabel } from "./domain/genealogy";
 import { kinship } from "./domain/kinship";
+import { layoutNetwork, NETWORK_MAX_DEPTH } from "./domain/network-layout";
 import type { ArchiveConfig } from "./data/types";
 import { signOut } from "next-auth/react";
 import { type View } from "./components/FamilyGraph";
@@ -18,6 +19,7 @@ const FamilyGraph = lazy(() =>
     default: module.FamilyGraph,
   })),
 );
+const NetworkGraph = lazy(() => import("./components/NetworkGraph").then((module) => ({ default: module.NetworkGraph })));
 
 const views: { id: View; name: string; icon: string; description: string }[] = [
   {
@@ -54,6 +56,12 @@ const views: { id: View; name: string; icon: string; description: string }[] = [
     icon: "path",
     description: "Find the connection. Trace the path between any two people.",
   },
+  {
+    id: "network",
+    name: "Network",
+    icon: "network",
+    description: "See every connection. Explore rings of relationship distance around one person.",
+  },
 ];
 export default function App({ family, config }: { family: Genealogy; config: ArchiveConfig }) {
   const initial =
@@ -64,6 +72,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
     [selected, setSelected] = useState(initial),
     [view, setView] = useState<View>("family"),
     [generations, setGenerations] = useState(3),
+    [networkDepth, setNetworkDepth] = useState(3),
     [target, setTarget] = useState(
       family.people.has("finn")
         ? "finn"
@@ -105,6 +114,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
   );
   const label = view === "path" ? kinship(family, root, target) : null;
   const path = view === "path" ? family.path(root, target) : null;
+  const network = useMemo(() => view === "network" ? layoutNetwork(family, root, networkDepth) : null, [family, root, view, networkDepth]);
   return (
     <div className="app">
       <header className="site-header">
@@ -324,7 +334,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               <h1>
                 {view === "path" ? "Find a connection" : displayName(person)}
                 <span>
-                  {view === "path"
+                  {view === "network"
+                    ? "See which relatives are closest."
+                    : view === "path"
                     ? "Every connection has a path."
                     : "Follow a branch. Get to know the family."}
                 </span>
@@ -362,6 +374,22 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   {[2, 3, 4, 5].map((n) => (
                     <option value={n} key={n}>
                       {n} generations
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {view === "network" && (
+              <label className="generation-select">
+                Show{" "}
+                <select
+                  aria-label="Maximum network edges"
+                  value={networkDepth}
+                  onChange={(e) => setNetworkDepth(Number(e.target.value))}
+                >
+                  {Array.from({ length: NETWORK_MAX_DEPTH }, (_, i) => i + 1).map((n) => (
+                    <option value={n} key={n}>
+                      Up to {n} {n === 1 ? "edge" : "edges"}
                     </option>
                   ))}
                 </select>
@@ -448,7 +476,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   {views.find((v) => v.id === view)!.name}
                 </span>
                 <small>
-                  {view === "path"
+                  {view === "network"
+                    ? "Select a person to re-centre the network"
+                    : view === "path"
                     ? "Select a person to see their profile"
                     : "Select a person to explore their family"}
                 </small>
@@ -460,7 +490,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   </div>
                 }
               >
-                <FamilyGraph
+                {view === "network" ? <NetworkGraph family={family} root={root} maxEdges={networkDepth} onSelect={selectNode} /> : <FamilyGraph
                   family={family}
                   root={root}
                   selected={selected}
@@ -468,12 +498,14 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   view={view}
                   generations={generations}
                   onSelect={selectNode}
-                />
+                />}
               </Suspense>
               <div className="graph-footer">
                 <span>Drag to pan · Scroll or pinch to zoom</span>
                 <span>
-                  {view === "family"
+                  {view === "network"
+                    ? `Up to ${networkDepth} ${networkDepth === 1 ? "edge" : "edges"} from the centre · each ring is one edge`
+                    : view === "family"
                     ? "Parents, children, partners, and siblings."
                     : view === "extended"
                       ? "Immediate family plus grandparents, grandchildren, aunts, uncles, nieces, and nephews."
@@ -492,7 +524,9 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
             <p>A list for easy keyboard navigation.</p>
             <div role="list">
               {[
-                ...(view === "family"
+                ...(view === "network"
+                  ? network!.distances.keys()
+                  : view === "family"
                   ? family.immediate(root)
                   : view === "extended"
                     ? family.extended(root)

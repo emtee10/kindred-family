@@ -24,7 +24,7 @@ import { familyEdgeTypes } from "./FamilyEdges";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
 import "@xyflow/react/dist/style.css";
 
-export type View = "family" | "extended" | "ancestors" | "descendants" | "path";
+export type View = "family" | "extended" | "ancestors" | "descendants" | "path" | "network";
 type PersonNodeData = {
   person: Person;
   root: boolean;
@@ -82,7 +82,7 @@ export function FamilyGraph({
   family: Genealogy;
   root: string;
   selected: string;
-  view: View;
+  view: Exclude<View, "network">;
   generations: number;
   target: string;
   onSelect: (id: string) => void;
@@ -120,7 +120,7 @@ export function FamilyGraph({
       family, familyRows, layoutFamily(family, root, familyRows, {
         groupPartners: view === "family" || view === "extended",
       }),
-      { includePartners: view === "family" || view === "extended" },
+      { includePartners: view === "family" || view === "extended", root },
     ),
   [family, familyRows, root, view]);
   const edges: Edge[] = useMemo(() => {

@@ -1,5 +1,10 @@
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
+    network: <>
+      <circle cx="12" cy="12" r="2.5" />
+      <circle cx="12" cy="12" r="9" strokeDasharray="2 3" />
+      <path d="m10 10-4-4m8 4 4-4m-4 8 4 4m-8-4-4 4" />
+    </>,
     leaf: (
       <>
         <path d="M20 4C11 3 3 8 6 16c8 5 14-3 14-12Z" />
