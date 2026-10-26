@@ -41,12 +41,12 @@ function NetworkRelation({ data, style, markerEnd }: EdgeProps<NetworkEdge>) {
 const nodeTypes = { networkPerson: NetworkPerson };
 const edgeTypes = { networkRelation: NetworkRelation };
 
-export function NetworkGraph({ family, root, onSelect }: {
-  family: Genealogy; root: string; onSelect: (id: string) => void;
+export function NetworkGraph({ family, root, maxEdges, onSelect }: {
+  family: Genealogy; root: string; maxEdges: number; onSelect: (id: string) => void;
 }) {
   const canvas = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
-  const layout = useMemo(() => layoutNetwork(family, root), [family, root]);
+  const layout = useMemo(() => layoutNetwork(family, root, maxEdges), [family, root, maxEdges]);
   const nodes: NetworkNode[] = useMemo(() => [...layout.positions].map(([id, point]) => {
     const person = family.people.get(id)!;
     return { id, type: "networkPerson", width: NETWORK_WIDTH, height: NETWORK_HEIGHT,
@@ -114,6 +114,7 @@ export function NetworkGraph({ family, root, onSelect }: {
             fill="none" stroke={entry.color} strokeWidth="1.6" />}
         </svg>{entry.text}
       </span>)}</div>
+      {!!layout.beyondDepth.length && <p role="status">{layout.beyondDepth.length} more {layout.beyondDepth.length === 1 ? "person is" : "people are"} beyond the selected edge limit.</p>}
       {!!layout.disconnected.length && <p role="status">{layout.disconnected.length} {layout.disconnected.length === 1 ? "person has" : "people have"} no recorded path to this person and {layout.disconnected.length === 1 ? "is" : "are"} outside this network.</p>}
     </div>
   </div>;

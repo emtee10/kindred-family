@@ -4,6 +4,7 @@ import { shortestPathRelationships } from "./shortest-paths";
 
 export const NETWORK_WIDTH = 132;
 export const NETWORK_HEIGHT = 44;
+export const NETWORK_MAX_DEPTH = 10;
 const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 export function networkAdjacency(ids: Iterable<string>, relationships: Relationship[]) {
@@ -31,18 +32,19 @@ export function networkDistances(adjacency: Map<string, Set<string>>, root: stri
   return distances;
 }
 
-// Layout consumes the existing loaded corpus. Unreachable people have no finite
-// ring; return them separately rather than inventing a graph distance for them.
-export function layoutNetwork(family: Genealogy, root: string) {
+// Layout consumes the existing loaded corpus. Report unreachable people
+// separately from those beyond the selected maximum relationship distance.
+export function layoutNetwork(family: Genealogy, root: string, maxEdges = NETWORK_MAX_DEPTH) {
   const adjacency = networkAdjacency(family.people.keys(), family.data.relationships);
-  const distances = networkDistances(adjacency, root);
+  const allDistances = networkDistances(adjacency, root);
+  const distances = new Map([...allDistances].filter(([, distance]) => distance <= maxEdges));
   const rings = new Map<number, string[]>();
   for (const [id, distance] of distances) {
     const ring = rings.get(distance) ?? [];
     ring.push(id);
     rings.set(distance, ring);
   }
-  const relationships = shortestPathRelationships(family.people.keys(), family.data.relationships, root)
+  const relationships = shortestPathRelationships(distances.keys(), family.data.relationships, root)
     .sort((a, b) => compare(a.id, b.id));
   const tree = networkAdjacency(distances.keys(), relationships);
   const children = new Map([...distances].map(([id, depth]) => [id,
@@ -89,7 +91,8 @@ export function layoutNetwork(family: Genealogy, root: string) {
     y: depth * step * Math.sin(angles.get(id)!),
   }]));
   return { distances, rings, positions, angles, step, relationships,
-    disconnected: [...family.people.keys()].filter((id) => !distances.has(id)).sort(compare) };
+    beyondDepth: [...allDistances].filter(([, distance]) => distance > maxEdges).map(([id]) => id).sort(compare),
+    disconnected: [...family.people.keys()].filter((id) => !allDistances.has(id)).sort(compare) };
 }
 
 export function networkEdgePath(layout: ReturnType<typeof layoutNetwork>, relationship: Relationship) {

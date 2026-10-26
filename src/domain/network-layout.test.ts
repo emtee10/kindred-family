@@ -23,6 +23,38 @@ function fixture() {
 }
 
 describe("radial network", () => {
+  it.each([0, 1, 2, 3, 10])("limits nodes, edges and rings to %s edges from the index", (maxEdges) => {
+    const family = fixture();
+    const all = networkDistances(networkAdjacency(family.people.keys(), family.data.relationships), "root");
+    const result = layoutNetwork(family, "root", maxEdges);
+    expect(Object.fromEntries(result.distances)).toEqual(Object.fromEntries([...all].filter(([, depth]) => depth <= maxEdges)));
+    expect([...result.positions.keys()]).toEqual([...result.distances.keys()]);
+    expect([...result.rings.keys()].every((depth) => depth <= maxEdges)).toBe(true);
+    expect(result.relationships).toHaveLength(result.positions.size - 1);
+    expect(result.relationships.every((r) => result.positions.has(r.from) && result.positions.has(r.to))).toBe(true);
+    expect(result.beyondDepth).toEqual([...all].filter(([, depth]) => depth > maxEdges).map(([id]) => id).sort());
+    expect(result.disconnected).toEqual(["island", "isolated"]);
+    const displayed = networkDistances(networkAdjacency(result.positions.keys(), result.relationships), "root");
+    expect(Object.fromEntries(displayed)).toEqual(Object.fromEntries(result.distances));
+  });
+
+  it("supports the ten-edge limit inclusively and recalculates from a new index", () => {
+    const ids = Array.from({ length: 13 }, (_, i) => `person${i}`);
+    const family = new Genealogy({ people: ids.map(person), relationships: ids.slice(1).map((to, i) => ({
+      id: `r${i}`, from: ids[i], to, type: parent,
+    })) });
+    const result = layoutNetwork(family, ids[0], 10);
+    expect(result.positions.size).toBe(11);
+    expect(result.distances.get(ids[10])).toBe(10);
+    expect(result.positions.has(ids[11])).toBe(false);
+    expect(result.beyondDepth).toEqual([ids[11], ids[12]]);
+    expect(result.disconnected).toEqual([]);
+    expect(layoutNetwork(family, ids[0])).toEqual(result);
+    const recentered = layoutNetwork(family, ids[12], 1);
+    expect([...recentered.positions.keys()]).toEqual([ids[12], ids[11]]);
+    expect(recentered.distances.get(ids[12])).toBe(0);
+  });
+
   it("positions branches using only retained shortest-path relationships", () => {
     const family = fixture();
     const before = layoutNetwork(family, "root");

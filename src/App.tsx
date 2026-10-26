@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Genealogy, displayName, edgeLabel } from "./domain/genealogy";
 import { kinship } from "./domain/kinship";
-import { layoutNetwork } from "./domain/network-layout";
+import { layoutNetwork, NETWORK_MAX_DEPTH } from "./domain/network-layout";
 import type { ArchiveConfig } from "./data/types";
 import { signOut } from "next-auth/react";
 import { type View } from "./components/FamilyGraph";
@@ -72,6 +72,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
     [selected, setSelected] = useState(initial),
     [view, setView] = useState<View>("family"),
     [generations, setGenerations] = useState(3),
+    [networkDepth, setNetworkDepth] = useState(3),
     [target, setTarget] = useState(
       family.people.has("finn")
         ? "finn"
@@ -113,7 +114,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
   );
   const label = view === "path" ? kinship(family, root, target) : null;
   const path = view === "path" ? family.path(root, target) : null;
-  const network = useMemo(() => view === "network" ? layoutNetwork(family, root) : null, [family, root, view]);
+  const network = useMemo(() => view === "network" ? layoutNetwork(family, root, networkDepth) : null, [family, root, view, networkDepth]);
   return (
     <div className="app">
       <header className="site-header">
@@ -378,6 +379,22 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 </select>
               </label>
             )}
+            {view === "network" && (
+              <label className="generation-select">
+                Show{" "}
+                <select
+                  aria-label="Maximum network edges"
+                  value={networkDepth}
+                  onChange={(e) => setNetworkDepth(Number(e.target.value))}
+                >
+                  {Array.from({ length: NETWORK_MAX_DEPTH }, (_, i) => i + 1).map((n) => (
+                    <option value={n} key={n}>
+                      Up to {n} {n === 1 ? "edge" : "edges"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           {view === "path" && (
             <div className="path-controls">
@@ -473,7 +490,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   </div>
                 }
               >
-                {view === "network" ? <NetworkGraph family={family} root={root} onSelect={selectNode} /> : <FamilyGraph
+                {view === "network" ? <NetworkGraph family={family} root={root} maxEdges={networkDepth} onSelect={selectNode} /> : <FamilyGraph
                   family={family}
                   root={root}
                   selected={selected}
@@ -487,7 +504,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 <span>Drag to pan · Scroll or pinch to zoom</span>
                 <span>
                   {view === "network"
-                    ? "Each ring is one more relationship edge from the centre."
+                    ? `Up to ${networkDepth} ${networkDepth === 1 ? "edge" : "edges"} from the centre · each ring is one edge`
                     : view === "family"
                     ? "Parents, children, partners, and siblings."
                     : view === "extended"
