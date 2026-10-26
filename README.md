@@ -69,8 +69,6 @@ Open the folder in VS Code with the Dev Containers extension and choose **Reopen
 
 `src/domain/` holds the genealogy types, Zod runtime schemas, validation, name/date formatting, relationship traversal, and kinship logic. It remains independent of Next.js, React, and React Flow. React components transform domain records into React Flow nodes/edges. Immediate family uses a compact three-row layout; ancestors, descendants, and paths use ELK automatic layout. Graph positions are never stored in family data.
 
-Network uses `src/domain/network-layout.ts` to calculate undirected shortest-path distances across all relationship types in the loaded archive. The index person sits at the centre, with each ring exactly one additional relationship edge away. Deterministic angular ordering groups people near their inward neighbours, and ring spacing expands to keep compact nodes apart. Every relationship between connected people is displayed, including connections outside the shortest-path tree. Arrows point from parents toward children; colours, dash patterns, and a directional legend distinguish relationship types. Select any person to re-centre and open their profile. Disconnected people are reported separately because they have no finite distance from the centre. Pan and zoom work as in the other views.
-
 | Location | Purpose |
 | --- | --- |
 | `src/app/` | App Router pages, layout, login form, and API route handlers |
