@@ -97,7 +97,6 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
           <svg className="network-rings" width="1" height="1" aria-hidden="true">
             {[...layout.rings.keys()].filter(Boolean).map((distance) => <g key={distance}>
               <circle cx="0" cy="0" r={distance * layout.step} />
-              <text x="8" y={-distance * layout.step - 7}>{distance} {distance === 1 ? "edge" : "edges"}</text>
             </g>)}
           </svg>
         </ViewportPortal>
@@ -105,8 +104,6 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
       </ReactFlow>
     </div>
     <div className="network-legend" aria-label="Network relationship legend">
-      <p>Each person follows one shortest path to the centre. Rings count relationship edges. Zoom in for full names and dates, or select a person to re-centre.</p>
-      {!!legend.length && <p>Arrows point toward the child. Read samples from the centre outward (left to right).</p>}
       <div>{legend.map((entry) => <span key={entry.text}>
         <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true">
           <path d="M2 6H32" stroke={entry.color} strokeWidth="1.6" strokeDasharray={entry.dash} />

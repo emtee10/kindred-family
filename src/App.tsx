@@ -335,7 +335,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 {view === "path" ? "Find a connection" : displayName(person)}
                 <span>
                   {view === "network"
-                    ? "Select a person to re-centre and see their profile"
+                    ? "See which relatives are closest."
                     : view === "path"
                     ? "Every connection has a path."
                     : "Follow a branch. Get to know the family."}
