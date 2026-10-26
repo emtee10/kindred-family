@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import {
   ReactFlow,
   Background,
-  Controls,
   Handle,
   Position,
   type Node,
@@ -22,6 +21,7 @@ import { layoutFamily, lineageRows } from "../domain/family-layout";
 import { planFamilyConnections } from "../domain/family-connections";
 import { familyEdgeTypes } from "./FamilyEdges";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
+import { GraphControls } from "./GraphControls";
 import "@xyflow/react/dist/style.css";
 
 export type View = "family" | "extended" | "ancestors" | "descendants" | "path" | "network";
@@ -97,6 +97,24 @@ export function FamilyGraph({
       zoom: 0.95,
     });
   const centeredRoot = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const canvas = container.current;
+    if (!canvas) return;
+    let width = canvas.clientWidth, height = canvas.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = canvas.clientWidth, nextHeight = canvas.clientHeight;
+      const dx = (nextWidth - width) / 2, dy = (nextHeight - height) / 2;
+      // Keep the same graph point at the centre when entering or leaving full screen.
+      setViewport((current) => ({ ...current,
+        x: current.x + dx,
+        y: current.y + dy,
+      }));
+      width = nextWidth;
+      height = nextHeight;
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
   const path = useMemo(
     () => (view === "path" ? family.path(root, target) : null),
     [family, view, root, target],
@@ -394,7 +412,7 @@ export function FamilyGraph({
           proOptions={{ hideAttribution: true }}
         >
           <Background color="#dce2d8" gap={22} size={1} />
-          <Controls showInteractive={false} />
+          <GraphControls />
         </ReactFlow>
       )}
       <div className="graph-legend">

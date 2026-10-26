@@ -1,11 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  ReactFlow, Background, Controls, Handle, Position, BaseEdge, MarkerType,
+  ReactFlow, Background, Handle, Position, BaseEdge, MarkerType,
   ViewportPortal, type Node, type NodeProps, type Edge, type EdgeProps, type Viewport,
   getViewportForBounds,
 } from "@xyflow/react";
 import { displayName, edgeLabel, lifespan, type Genealogy } from "../domain/genealogy";
 import { confidence, isParent } from "../domain/types";
+import { GraphControls } from "./GraphControls";
 import {
   layoutNetwork, networkEdgePath, networkLegend, networkStyles, NETWORK_WIDTH, NETWORK_HEIGHT,
 } from "../domain/network-layout";
@@ -100,7 +101,7 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
             </g>)}
           </svg>
         </ViewportPortal>
-        <Controls showInteractive={false} />
+        <GraphControls />
       </ReactFlow>
     </div>
     <div className="network-legend" aria-label="Network relationship legend">
