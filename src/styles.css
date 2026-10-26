@@ -936,6 +936,11 @@ select {
   width: 29px !important;
   height: 29px !important;
 }
+.react-flow__controls-button svg.graph-view-icon {
+  max-width: 16px;
+  max-height: 16px;
+  fill: none;
+}
 .graph-legend {
   position: absolute;
   right: 15px;
