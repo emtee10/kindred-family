@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { Genealogy } from "./genealogy";
 import { layoutFamily, lineageRows } from "./family-layout";
 import { planFamilyConnections } from "./family-connections";
-import { layoutNetwork, networkAdjacency, networkDistances, networkLegend, NETWORK_WIDTH, NETWORK_HEIGHT } from "./network-layout";
+import { layoutNetwork, networkEdgePath, networkAdjacency, networkDistances, networkLegend, NETWORK_WIDTH, NETWORK_HEIGHT } from "./network-layout";
+import { validateFamily } from "./validation";
 import { relationshipTypes, type Person, type Relationship } from "./types";
 
 const person = (id: string): Person => ({ id, names: [{ given: id, type: "current" }], events: [], photos: [] });
@@ -21,6 +23,73 @@ function fixture() {
 }
 
 describe("radial network", () => {
+  it("positions branches using only retained shortest-path relationships", () => {
+    const family = fixture();
+    const before = layoutNetwork(family, "root");
+    family.data.relationships.push({ id: "alternate", from: "spouse", to: "sibling", type: "guardian" });
+    const after = layoutNetwork(family, "root");
+    expect(after.relationships).toEqual(before.relationships);
+    expect(after.positions).toEqual(before.positions);
+  });
+
+  it("keeps each branch contiguous and routes around cards for every index in the actual archive", () => {
+    const family = new Genealogy(validateFamily(
+      JSON.parse(readFileSync("private-data/people.json", "utf8")),
+      JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+    ));
+    const collisions: string[] = [];
+    for (const root of family.people.keys()) {
+      const layout = layoutNetwork(family, root);
+      const adjacency = networkAdjacency(layout.positions.keys(), layout.relationships);
+      const points = [...layout.positions];
+      for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
+        const [a, p] = points[i], [b, q] = points[j];
+        if (Math.abs(p.x - q.x) < NETWORK_WIDTH && Math.abs(p.y - q.y) < NETWORK_HEIGHT) collisions.push(`${root}: ${a} overlaps ${b}`);
+      }
+      for (const branch of adjacency.get(root)!) {
+        const descendants = new Set([branch]);
+        const queue = [branch];
+        for (let i = 0; i < queue.length; i++) for (const next of adjacency.get(queue[i])!) {
+          if (layout.distances.get(next)! <= layout.distances.get(queue[i])!) continue;
+          descendants.add(next);
+          queue.push(next);
+        }
+        for (const ring of layout.rings.values()) {
+          const indices = ring.flatMap((id, index) => descendants.has(id) ? [index] : []);
+          if (indices.length) expect(indices.at(-1)! - indices[0] + 1).toBe(indices.length);
+        }
+      }
+      for (const relationship of layout.relationships) {
+        const path = networkEdgePath(layout, relationship)!;
+        expect(path).not.toMatch(/NaN|Infinity/);
+        let previous = { x: 0, y: 0 };
+        for (const match of path.matchAll(/([MLA]) ([^MLA]+)/g)) {
+          const values = match[2].trim().split(/\s+/).map(Number);
+          const end = { x: values.at(-2)!, y: values.at(-1)! };
+          if (match[1] !== "M") {
+            const angle = Math.atan2(previous.y, previous.x);
+            let sweep = Math.atan2(end.y, end.x) - angle;
+            if (values[4] === 1 && sweep < 0) sweep += 2 * Math.PI;
+            if (values[4] === 0 && sweep > 0) sweep -= 2 * Math.PI;
+            for (let i = 0; i <= 30; i++) {
+              const t = i / 30;
+              const sample = match[1] === "A"
+                ? { x: values[0] * Math.cos(angle + sweep * t), y: values[0] * Math.sin(angle + sweep * t) }
+                : { x: previous.x + (end.x - previous.x) * t, y: previous.y + (end.y - previous.y) * t };
+              for (const [id, card] of points) {
+                if (Math.abs(sample.x - card.x) < NETWORK_WIDTH / 2 - 1e-6 && Math.abs(sample.y - card.y) < NETWORK_HEIGHT / 2 - 1e-6) {
+                  collisions.push(`${root}: ${relationship.id} passes through ${id}`);
+                }
+              }
+            }
+          }
+          previous = end;
+        }
+      }
+    }
+    expect(collisions).toEqual([]);
+  });
+
   it("assigns parent, child, sibling and spouse to shortest-path rings", () => {
     const result = layoutNetwork(fixture(), "root");
     expect(Object.fromEntries(result.distances)).toEqual({ root: 0, parent: 1, child: 1, spouse: 1, sibling: 2, partner: 2, far: 3 });
@@ -44,13 +113,18 @@ describe("radial network", () => {
     expect(networkDistances(adjacency, "b").get("a")).toBe(1);
   });
 
-  it("preserves every actual visible edge, including same-ring edges and multiple roles", () => {
+  it("keeps one shortest route per person and removes same-ring links and duplicate roles", () => {
     const family = fixture();
     family.data.relationships.push({ id: "second-role", from: "root", to: "child", type: "guardian" });
     const result = layoutNetwork(family, "root");
-    expect(result.relationships).toEqual(family.data.relationships.filter((r) => r.id !== "r8").sort((a, b) => a.id.localeCompare(b.id)));
-    expect(result.relationships.find((r) => r.id === "r7")).toMatchObject({ from: "spouse", to: "child", type: "adoptive_parent" });
-    expect(result.relationships.length).toBeGreaterThan(result.distances.size - 1);
+    expect(result.relationships.some((r) => r.id === "r7" || r.id === "second-role")).toBe(false);
+    expect(result.relationships.find((r) => r.id === "r1")).toMatchObject({ from: "root", to: "child", type: parent });
+    expect(result.relationships).toHaveLength(result.distances.size - 1);
+    const displayedDistances = networkDistances(networkAdjacency(family.people.keys(), result.relationships), "root");
+    expect(Object.fromEntries(displayedDistances)).toEqual(Object.fromEntries(result.distances));
+    for (const r of result.relationships) {
+      expect(Math.abs(result.distances.get(r.from)! - result.distances.get(r.to)!)).toBe(1);
+    }
   });
 
   it("preserves stored parent-to-child direction even when traversed toward a parent", () => {
@@ -99,7 +173,8 @@ describe("radial network", () => {
     expect(Math.hypot(after.positions.get("sibling")!.x, after.positions.get("sibling")!.y)).toBe(0);
     expect(after.distances.get("root")).toBe(2);
     expect(after.distances.get("child")).toBe(3);
-    expect(after.relationships).toEqual(before.relationships);
+    expect(after.relationships).not.toEqual(before.relationships);
+    expect(after.relationships).toHaveLength(after.distances.size - 1);
   });
 
   it("expands dense rings without shrinking or overlapping nodes", () => {

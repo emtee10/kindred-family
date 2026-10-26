@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { Genealogy } from "./genealogy";
 import { validateFamily } from "./validation";
 import { layoutFamily } from "./family-layout";
+import { networkAdjacency, networkDistances } from "./network-layout";
 import {
   familyConnectorGeometry,
   partnerConnectorGeometry,
@@ -36,6 +37,38 @@ const rects = (positions: Map<string, { x: number; y: number }>) =>
   }]));
 
 describe("family connectors", () => {
+  it.each([false, true])("keeps one shortest route for every index person in family views (extended=%s)", (extended) => {
+    const family = new Genealogy(validateFamily(
+      JSON.parse(readFileSync("private-data/people.json", "utf8")),
+      JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+    ));
+    for (const root of family.people.keys()) {
+      const levels = family.familyMembers(root, extended);
+      const result = planFamilyConnections(family, levels, layoutFamily(family, root, levels), { root });
+      const represented = [
+        ...result.groups.flatMap((group) => group.relationships), ...result.direct,
+        ...result.supplemental.map((edge) => edge.relationship), ...result.partners.map((edge) => edge.relationship),
+      ];
+      const expected = networkDistances(networkAdjacency(levels.keys(), family.data.relationships), root);
+      const displayed = networkDistances(networkAdjacency(levels.keys(), represented), root);
+      expect(Object.fromEntries(displayed)).toEqual(Object.fromEntries(expected));
+      expect(represented).toHaveLength(expected.size - 1);
+      expect(new Set(represented.map((r) => r.id)).size).toBe(represented.length);
+    }
+  });
+
+  it("omits alternate step-parent and spouse routes when Finn is the index", () => {
+    const family = new Genealogy(validateFamily(
+      JSON.parse(readFileSync("private-data/people.json", "utf8")),
+      JSON.parse(readFileSync("private-data/relationships.json", "utf8")),
+    ));
+    const levels = family.familyMembers("finn");
+    const result = planFamilyConnections(family, levels, layoutFamily(family, "finn", levels), { root: "finn" });
+    expect(result.supplemental.map((edge) => edge.relationship.id)).toEqual(["r25"]);
+    expect(result.partners.map((edge) => edge.relationship.id)).toEqual(["r41"]);
+    expect(result.groups.find((group) => group.children.includes("wren"))!.parents).toEqual(["celia"]);
+  });
+
   it.each([false, true])("separates Sylvie’s step-parent connections in Finn’s family view (extended=%s)", (extended) => {
     const family = new Genealogy(validateFamily(
       JSON.parse(readFileSync("private-data/people.json", "utf8")),

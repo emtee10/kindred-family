@@ -1,6 +1,7 @@
 import type { Genealogy } from "./genealogy";
 import { getSmoothStepPath, Position } from "@xyflow/react";
 import { isParent, type Relationship } from "./types";
+import { shortestPathRelationships } from "./shortest-paths";
 
 export const PERSON_WIDTH = 190;
 export const PERSON_HEIGHT = 95;
@@ -26,8 +27,11 @@ export function planFamilyConnections(
   family: Genealogy,
   levels: Map<string, number>,
   positions: Map<string, Point>,
-  { includePartners = true }: { includePartners?: boolean } = {},
+  { includePartners = true, root }: { includePartners?: boolean; root?: string } = {},
 ) {
+  const allowed = family.data.relationships.filter((r) => includePartners || isParent(r));
+  const relationships = root === undefined ? allowed : shortestPathRelationships(levels.keys(), allowed, root);
+  const retained = new Set(relationships.map((r) => r.id));
   const incoming = new Map<string, Relationship[]>();
   for (const relation of family.data.relationships) {
     if (!isParent(relation)) continue;
@@ -45,14 +49,14 @@ export function planFamilyConnections(
     // they do not become additional members of that parental union.
     const recorded = primary.length ? primary : allRecorded;
     for (const relationship of primary.length ? allRecorded.filter((r) => !primary.includes(r)) : []) {
-      if (!levels.has(relationship.from)) continue;
+      if (!levels.has(relationship.from) || !retained.has(relationship.id)) continue;
       if (levels.get(relationship.from)! + 1 === childLevel) {
         supplemental.push({ relationship, lane: 0 });
       } else {
         direct.push(relationship);
       }
     }
-    const visible = recorded.filter((r) => levels.has(r.from));
+    const visible = recorded.filter((r) => levels.has(r.from) && retained.has(r.id));
     if (!visible.length) continue;
     const first = visible[0];
     const parentLevel = levels.get(first.from)!;
@@ -67,7 +71,9 @@ export function planFamilyConnections(
     // siblings just because one of their parents is outside the current view.
     // Relationship metadata belongs to the branches, not the family identity.
     const signature = [...new Set(recorded.map((r) => r.from))].sort();
-    const key = JSON.stringify([parentLevel, childLevel, signature]);
+    // Different retained predecessors must not be rejoined by a sibling bar.
+    const visibleSignature = [...new Set(visible.map((r) => r.from))].sort();
+    const key = JSON.stringify([parentLevel, childLevel, signature, visibleSignature]);
     const group = groups.get(key) ?? {
       id: `family:${key}`,
       parents: [...new Set(visible.map((r) => r.from))],
@@ -109,7 +115,7 @@ export function planFamilyConnections(
 
   const partners: PartnerConnection[] = [];
   const bridges = new Map<number, number>();
-  for (const relationship of family.data.relationships) {
+  for (const relationship of relationships) {
     if (!includePartners || isParent(relationship) || !levels.has(relationship.from) || !levels.has(relationship.to)) continue;
     const fromLevel = levels.get(relationship.from)!;
     if (fromLevel !== levels.get(relationship.to)) {

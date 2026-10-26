@@ -825,6 +825,8 @@ select {
   line-height: 14px;
 }
 .network-person:has(small) strong { -webkit-line-clamp: 1; }
+.network-person.compact { padding: 4px; }
+.network-person.compact strong { display: block; white-space: nowrap; text-overflow: ellipsis; }
 .network-person small { display: block; font-size: 10px; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .network-canvas .react-flow__handle { opacity: 0; }
 .network-rings { overflow: visible; position: absolute; pointer-events: none; }

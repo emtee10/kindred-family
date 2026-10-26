@@ -1,5 +1,6 @@
 import type { Genealogy } from "./genealogy";
 import { isParent, type Relationship } from "./types";
+import { shortestPathRelationships } from "./shortest-paths";
 
 export const NETWORK_WIDTH = 132;
 export const NETWORK_HEIGHT = 44;
@@ -41,38 +42,81 @@ export function layoutNetwork(family: Genealogy, root: string) {
     ring.push(id);
     rings.set(distance, ring);
   }
-  const angles = new Map([[root, -Math.PI / 2]]);
-  // Circular barycentres cluster people beside their inward neighbours.
-  // Equal angular slots and a shared radius step guarantee node clearance,
-  // while keeping every radius exactly proportional to shortest-path distance.
-  let step = 180;
+  const relationships = shortestPathRelationships(family.people.keys(), family.data.relationships, root)
+    .sort((a, b) => compare(a.id, b.id));
+  const tree = networkAdjacency(distances.keys(), relationships);
+  const children = new Map([...distances].map(([id, depth]) => [id,
+    [...tree.get(id)!].filter((next) => distances.get(next) === depth + 1).sort(compare),
+  ]));
+  const ordered = [...distances.keys()].sort((a, b) => distances.get(b)! - distances.get(a)! || compare(a, b));
   const clearance = Math.hypot(NETWORK_WIDTH, NETWORK_HEIGHT) + 22;
-  for (const [distance, ring] of rings) {
-    if (!distance) continue;
-    const preferred = (id: string) => {
-      const inward = [...adjacency.get(id)!].filter((other) => distances.get(other)! < distance).sort(compare);
-      const x = inward.reduce((sum, other) => sum + Math.cos(angles.get(other)!), 0);
-      const y = inward.reduce((sum, other) => sum + Math.sin(angles.get(other)!), 0);
-      return Math.atan2(y, x);
-    };
-    ring.sort((a, b) => preferred(a) - preferred(b) || compare(a, b));
-    const offsets = ring.map((id, i) => preferred(id) - i * 2 * Math.PI / ring.length);
-    const offsetX = offsets.reduce((sum, angle) => sum + Math.cos(angle), 0);
-    const offsetY = offsets.reduce((sum, angle) => sum + Math.sin(angle), 0);
-    const offset = Math.hypot(offsetX, offsetY) < 1e-8 ? preferred(ring[0]) : Math.atan2(offsetY, offsetX);
-    ring.forEach((id, i) => angles.set(id, offset + i * 2 * Math.PI / ring.length));
-    if (ring.length > 1) {
-      step = Math.max(step, clearance / (2 * distance * Math.sin(Math.PI / ring.length)));
+  // Reserve enough angle for each card and its entire branch. Outer rings need
+  // less angle per card, so long branches do not crowd the first ring.
+  const demandsAt = (step: number) => {
+    const demands = new Map<string, number>();
+    for (const id of ordered) {
+      const depth = distances.get(id)!;
+      const own = depth ? 2 * Math.asin(Math.min(1, clearance / (2 * depth * step))) : 0;
+      demands.set(id, Math.max(own, children.get(id)!.reduce((sum, child) => sum + demands.get(child)!, 0)));
     }
+    return demands;
+  };
+  let step = 180;
+  let demands = demandsAt(step);
+  while ((demands.get(root) ?? 0) > 2 * Math.PI) {
+    step *= 1.1;
+    demands = demandsAt(step);
   }
-  const positions = new Map([...distances].map(([id, distance]) => [id, {
-    x: distance * step * Math.cos(angles.get(id)!),
-    y: distance * step * Math.sin(angles.get(id)!),
+  const angles = new Map([[root, -Math.PI / 2]]);
+  const assign = (id: string, start: number, span: number) => {
+    const descendants = children.get(id) ?? [];
+    const total = descendants.reduce((sum, child) => sum + demands.get(child)!, 0);
+    let cursor = start;
+    for (const child of descendants) {
+      const width = span * demands.get(child)! / total;
+      angles.set(child, cursor + width / 2);
+      assign(child, cursor, width);
+      cursor += width;
+    }
+  };
+  assign(root, -Math.PI, 2 * Math.PI);
+  // Point the deepest branch horizontally to use a wide canvas efficiently.
+  const rotation = ordered.length ? -angles.get(ordered[0])! : 0;
+  for (const [id, angle] of angles) if (id !== root) angles.set(id, angle + rotation);
+  for (const ring of rings.values()) ring.sort((a, b) => angles.get(a)! - angles.get(b)! || compare(a, b));
+  const positions = new Map([...distances].map(([id, depth]) => [id, {
+    x: depth * step * Math.cos(angles.get(id)!),
+    y: depth * step * Math.sin(angles.get(id)!),
   }]));
-  const relationships = family.data.relationships.filter((r) => distances.has(r.from) && distances.has(r.to))
-    .slice().sort((a, b) => compare(a.id, b.id));
-  return { distances, rings, positions, step, relationships,
+  return { distances, rings, positions, angles, step, relationships,
     disconnected: [...family.people.keys()].filter((id) => !distances.has(id)).sort(compare) };
+}
+
+export function networkEdgePath(layout: ReturnType<typeof layoutNetwork>, relationship: Relationship) {
+  const from = layout.positions.get(relationship.from);
+  const to = layout.positions.get(relationship.to);
+  if (!from || !to) return null;
+  const boundary = (centre: { x: number; y: number }, toward: { x: number; y: number }) => {
+    const dx = toward.x - centre.x, dy = toward.y - centre.y;
+    const scale = 1 / Math.max(Math.abs(dx) / (NETWORK_WIDTH / 2 + 3), Math.abs(dy) / (NETWORK_HEIGHT / 2 + 3));
+    return { x: centre.x + dx * scale, y: centre.y + dy * scale };
+  };
+  const fromDepth = layout.distances.get(relationship.from)!;
+  const toDepth = layout.distances.get(relationship.to)!;
+  if (Math.min(fromDepth, toDepth) === 0) {
+    const start = boundary(from, to), end = boundary(to, from);
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+  }
+  // Radial legs and an arc stay inside the empty gap between adjacent rings.
+  // Follow the stored direction so arrowheads still point toward the child.
+  const radius = (fromDepth + toDepth) * layout.step / 2;
+  const a = layout.angles.get(relationship.from)!;
+  const b = layout.angles.get(relationship.to)!;
+  const bendFrom = { x: radius * Math.cos(a), y: radius * Math.sin(a) };
+  const bendTo = { x: radius * Math.cos(b), y: radius * Math.sin(b) };
+  const start = boundary(from, bendFrom), end = boundary(to, bendTo);
+  const arc = Math.abs(a - b) < 1e-8 ? "" : ` A ${radius} ${radius} 0 ${Math.abs(b - a) > Math.PI ? 1 : 0} ${b > a ? 1 : 0} ${bendTo.x} ${bendTo.y}`;
+  return `M ${start.x} ${start.y} L ${bendFrom.x} ${bendFrom.y}${arc} L ${end.x} ${end.y}`;
 }
 
 export const networkStyles: Record<Relationship["type"], { label: string; color: string; dash?: string }> = {
