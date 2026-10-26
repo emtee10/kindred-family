@@ -71,6 +71,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
     [root, setRoot] = useState(initial),
     [selected, setSelected] = useState(initial),
     [view, setView] = useState<View>("family"),
+    [wideView, setWideView] = useState(false),
     [generations, setGenerations] = useState(3),
     [networkDepth, setNetworkDepth] = useState(3),
     [target, setTarget] = useState(
@@ -325,7 +326,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
           </div>
         </main>
       ) : (
-        <main className="explorer">
+        <main className={`explorer${wideView ? " explorer-wide" : ""}`}>
           <div className="explorer-heading">
             <div>
               <button className="back-link" onClick={() => setHome(true)}>
@@ -475,13 +476,24 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   />
                   {views.find((v) => v.id === view)!.name}
                 </span>
-                <small>
-                  {view === "network"
-                    ? "Select a person to re-centre the network"
-                    : view === "path"
-                    ? "Select a person to see their profile"
-                    : "Select a person to explore their family"}
-                </small>
+                <div className="graph-heading-meta">
+                  <small>
+                    {view === "network"
+                      ? "Select a person to re-centre the network"
+                      : view === "path"
+                      ? "Select a person to see their profile"
+                      : "Select a person to explore their family"}
+                  </small>
+                  <button
+                    className="wide-view-toggle"
+                    type="button"
+                    aria-pressed={wideView}
+                    onClick={() => setWideView((current) => !current)}
+                  >
+                    <span>Wide canvas</span>
+                    <span className="wide-view-switch" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <Suspense
                 fallback={

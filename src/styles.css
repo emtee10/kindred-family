@@ -750,6 +750,53 @@ select {
 .generation-select select {
   font-size: 11px;
 }
+.wide-view-toggle {
+  display: none;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px;
+  border: 1px solid #e2e6dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #65715f;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.graph-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.wide-view-switch {
+  width: 25px;
+  height: 14px;
+  padding: 2px;
+  border-radius: 99px;
+  background: #dce2d8;
+  transition: background-color 160ms ease;
+}
+.wide-view-switch::before {
+  content: "";
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px #283b3233;
+  transition: transform 160ms ease;
+}
+.wide-view-toggle[aria-pressed="true"] {
+  border-color: #c8d3c0;
+  background: #f4f7f1;
+  color: #355d4b;
+}
+.wide-view-toggle[aria-pressed="true"] .wide-view-switch {
+  background: #55745b;
+}
+.wide-view-toggle[aria-pressed="true"] .wide-view-switch::before {
+  transform: translateX(11px);
+}
 .explorer-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 290px;
@@ -800,6 +847,9 @@ select {
   border: 0;
   border-radius: 0;
   overflow: auto;
+}
+.graph-section:fullscreen .wide-view-toggle {
+  display: none;
 }
 .graph-section:fullscreen > .graph-canvas,
 .graph-section:fullscreen > .network-view,
@@ -1279,6 +1329,14 @@ select {
   }
   .graph-canvas {
     height: 640px;
+  }
+  .graph-heading-meta .wide-view-toggle {
+    display: flex;
+  }
+  .explorer.explorer-wide {
+    max-width: 2520px;
+    padding-right: 48px;
+    padding-left: 48px;
   }
 }
 @media (max-width: 1100px) {
