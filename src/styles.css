@@ -785,6 +785,13 @@ select {
   height: 565px;
   position: relative;
 }
+.graph-message.graph-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  height: 100%;
+  background: #f7f8f4;
+}
 .graph-section:fullscreen {
   display: flex;
   flex-direction: column;

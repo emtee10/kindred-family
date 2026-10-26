@@ -1,12 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ReactFlow, Background, Handle, Position, BaseEdge, MarkerType,
-  ViewportPortal, type Node, type NodeProps, type Edge, type EdgeProps, type Viewport,
-  getViewportForBounds,
+  ViewportPortal, type Node, type NodeProps, type Edge, type EdgeProps,
 } from "@xyflow/react";
 import { displayName, edgeLabel, lifespan, type Genealogy } from "../domain/genealogy";
 import { confidence, isParent } from "../domain/types";
 import { GraphControls } from "./GraphControls";
+import { GraphViewport } from "./GraphViewport";
+import { GRAPH_MIN_ZOOM } from "../domain/graph-viewport";
 import {
   layoutNetwork, networkEdgePath, networkLegend, networkStyles, NETWORK_WIDTH, NETWORK_HEIGHT,
 } from "../domain/network-layout";
@@ -45,17 +46,17 @@ const edgeTypes = { networkRelation: NetworkRelation };
 export function NetworkGraph({ family, root, maxEdges, onSelect }: {
   family: Genealogy; root: string; maxEdges: number; onSelect: (id: string) => void;
 }) {
-  const canvas = useRef<HTMLDivElement>(null);
-  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const [zoom, setZoom] = useState(1);
   const layout = useMemo(() => layoutNetwork(family, root, maxEdges), [family, root, maxEdges]);
   const nodes: NetworkNode[] = useMemo(() => [...layout.positions].map(([id, point]) => {
     const person = family.people.get(id)!;
     return { id, type: "networkPerson", width: NETWORK_WIDTH, height: NETWORK_HEIGHT,
+      measured: { width: NETWORK_WIDTH, height: NETWORK_HEIGHT },
       position: { x: point.x - NETWORK_WIDTH / 2, y: point.y - NETWORK_HEIGHT / 2 },
       data: { name: displayName(person), shortName: (person.names.find((name) => name.type === "current") ?? person.names[0]).given,
-        zoom: viewport.zoom, dates: person.birth?.date || person.death ? lifespan(person) : undefined,
+        zoom, dates: person.birth?.date || person.death ? lifespan(person) : undefined,
         root: id === root, onSelect } };
-  }), [layout, family, root, onSelect, viewport.zoom]);
+  }), [layout, family, root, onSelect, zoom]);
   const edges: NetworkEdge[] = useMemo(() => {
     return layout.relationships.map((r) => {
       const style = networkStyles[r.type];
@@ -69,28 +70,10 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
   }, [layout, family]);
   const legend = useMemo(() => networkLegend(layout.relationships.map((r) => r.type)), [layout]);
 
-  useLayoutEffect(() => {
-    const element = canvas.current;
-    if (!element) return;
-    const points = [...layout.positions.values()];
-    const minX = Math.min(0, ...points.map((point) => point.x)) - NETWORK_WIDTH / 2;
-    const minY = Math.min(0, ...points.map((point) => point.y)) - NETWORK_HEIGHT / 2;
-    const maxX = Math.max(0, ...points.map((point) => point.x)) + NETWORK_WIDTH / 2;
-    const maxY = Math.max(0, ...points.map((point) => point.y)) + NETWORK_HEIGHT / 2;
-    const centre = () => setViewport(getViewportForBounds(
-      { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
-      element.clientWidth, element.clientHeight, 0.05, 1, 0.12,
-    ));
-    centre();
-    const observer = new ResizeObserver(centre);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [layout]);
-
   return <div className="network-view">
-    <div ref={canvas} className="graph-canvas network-canvas" aria-label="network graph">
+    <div className="graph-canvas network-canvas" aria-label="network graph">
       <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-        viewport={viewport} onViewportChange={setViewport} minZoom={0.05} maxZoom={2}
+        onViewportChange={(viewport) => setZoom(viewport.zoom)} minZoom={GRAPH_MIN_ZOOM} maxZoom={2}
         nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
         onNodeClick={(_, node) => onSelect(node.id)} proOptions={{ hideAttribution: true }}>
         <Background color="#dce2d8" gap={22} size={1} />
@@ -101,6 +84,7 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
             </g>)}
           </svg>
         </ViewportPortal>
+        <GraphViewport layout={layout} focusId={root} />
         <GraphControls />
       </ReactFlow>
     </div>

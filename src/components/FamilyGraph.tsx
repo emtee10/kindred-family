@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -7,8 +7,8 @@ import {
   type Node,
   type Edge,
   type NodeProps,
-  type Viewport,
   MarkerType,
+  applyNodeChanges,
 } from "@xyflow/react";
 import {
   Genealogy,
@@ -22,6 +22,8 @@ import { planFamilyConnections } from "../domain/family-connections";
 import { familyEdgeTypes } from "./FamilyEdges";
 import { Avatar, ConfidenceBadge } from "./PersonUI";
 import { GraphControls } from "./GraphControls";
+import { GraphViewport } from "./GraphViewport";
+import { GRAPH_MIN_ZOOM } from "../domain/graph-viewport";
 import "@xyflow/react/dist/style.css";
 
 export type View = "family" | "extended" | "ancestors" | "descendants" | "path" | "network";
@@ -87,34 +89,9 @@ export function FamilyGraph({
   target: string;
   onSelect: (id: string) => void;
 }) {
-  const container = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<FamilyNode[]>([]),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(true),
-    [viewport, setViewport] = useState<Viewport>({
-      x: 0,
-      y: 0,
-      zoom: 0.95,
-    });
-  const centeredRoot = useRef<string | undefined>(undefined);
-  useLayoutEffect(() => {
-    const canvas = container.current;
-    if (!canvas) return;
-    let width = canvas.clientWidth, height = canvas.clientHeight;
-    const observer = new ResizeObserver(() => {
-      const nextWidth = canvas.clientWidth, nextHeight = canvas.clientHeight;
-      const dx = (nextWidth - width) / 2, dy = (nextHeight - height) / 2;
-      // Keep the same graph point at the centre when entering or leaving full screen.
-      setViewport((current) => ({ ...current,
-        x: current.x + dx,
-        y: current.y + dy,
-      }));
-      width = nextWidth;
-      height = nextHeight;
-    });
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, []);
+    [busy, setBusy] = useState(true);
   const path = useMemo(
     () => (view === "path" ? family.path(root, target) : null),
     [family, view, root, target],
@@ -356,25 +333,6 @@ export function FamilyGraph({
       cancelled = true;
     };
   }, [family, root, view, ids, edges, onSelect, familyRows, familyPlan]);
-  useLayoutEffect(() => {
-    const canvas = container.current;
-    const node = nodes.find(({ id }) => id === selected) ??
-      nodes.find(({ id }) => id === root);
-    if (busy || !canvas || !node) return;
-
-    const rootChanged = centeredRoot.current !== root;
-    centeredRoot.current = root;
-    setViewport((current) => {
-      const zoom = rootChanged ? 0.95 : current.zoom;
-      const nodeWidth = node.measured?.width ?? node.width ?? 190;
-      const nodeHeight = node.measured?.height ?? node.height ?? 95;
-      return {
-        x: canvas.clientWidth / 2 - (node.position.x + nodeWidth / 2) * zoom,
-        y: canvas.clientHeight / 2 - (node.position.y + nodeHeight / 2) * zoom,
-        zoom,
-      };
-    });
-  }, [busy, nodes, root, selected]);
   if (error)
     return (
       <div className="graph-message" role="alert">
@@ -389,32 +347,26 @@ export function FamilyGraph({
       </div>
     );
   return (
-    <div ref={container} className="graph-canvas" aria-label={`${view} graph`}>
-      {busy ? (
-        <div className="graph-message" role="status">
-          Arranging the family…
-        </div>
-      ) : (
-        <ReactFlow
-          key={`${root}-${view}-${generations}-${target}`}
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={familyEdgeTypes}
-          minZoom={0.15}
-          maxZoom={1.8}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          viewport={viewport}
-          onViewportChange={setViewport}
-          onNodeClick={(_, node) => onSelect(node.id)}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="#dce2d8" gap={22} size={1} />
-          <GraphControls />
-        </ReactFlow>
-      )}
+    <div className="graph-canvas" aria-label={`${view} graph`}>
+      <ReactFlow
+        nodes={nodes}
+        onNodesChange={(changes) => setNodes((current) => applyNodeChanges(changes, current))}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={familyEdgeTypes}
+        minZoom={GRAPH_MIN_ZOOM}
+        maxZoom={1.8}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        onNodeClick={(_, node) => onSelect(node.id)}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="#dce2d8" gap={22} size={1} />
+        <GraphViewport layout={nodes} focusId={selected} enabled={!busy} />
+        <GraphControls />
+      </ReactFlow>
+      {busy && <div className="graph-message graph-loading" role="status">Arranging the family…</div>}
       <div className="graph-legend">
         <span>
           <i />
