@@ -120,7 +120,7 @@ export function FamilyGraph({
       family, familyRows, layoutFamily(family, root, familyRows, {
         groupPartners: view === "family" || view === "extended",
       }),
-      { includePartners: view === "family" || view === "extended", root },
+      { includePartners: view === "family" || view === "extended" },
     ),
   [family, familyRows, root, view]);
   const edges: Edge[] = useMemo(() => {
