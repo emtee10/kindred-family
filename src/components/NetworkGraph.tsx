@@ -76,7 +76,7 @@ export function NetworkGraph({ family, root, maxEdges, onSelect }: {
         onViewportChange={(viewport) => setZoom(viewport.zoom)} minZoom={GRAPH_MIN_ZOOM} maxZoom={2}
         nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
         onNodeClick={(_, node) => onSelect(node.id)} proOptions={{ hideAttribution: true }}>
-        <Background color="#dce2d8" gap={22} size={1} />
+        <Background color="var(--border)" gap={22} size={1} />
         <ViewportPortal>
           <svg className="network-rings" width="1" height="1" aria-hidden="true">
             {[...layout.rings.keys()].filter(Boolean).map((distance) => <g key={distance}>

@@ -13,6 +13,7 @@ import {
 } from "./components/PersonUI";
 import { PersonSearch } from "./components/PersonSearch";
 import { Icon } from "./components/Icons";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 const FamilyGraph = lazy(() =>
   import("./components/FamilyGraph").then((module) => ({
@@ -157,6 +158,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               Fictional demo
             </span>
           )}
+          <ThemeToggle />
         </div>
       </header>
       {home ? (

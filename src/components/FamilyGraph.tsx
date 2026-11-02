@@ -157,8 +157,8 @@ export function FamilyGraph({
                 ? "7 3"
                 : "3 4",
         },
-        labelStyle: { fill: "#55625b", fontSize: 10 },
-        labelBgStyle: { fill: "#f7f8f4", fillOpacity: 0.95 },
+        labelStyle: { fill: "var(--text)", fontSize: 10 },
+        labelBgStyle: { fill: "var(--canvas)", fillOpacity: 0.95 },
         labelBgPadding: [5, 3] as [number, number],
         ariaLabel: `${displayName(family.people.get(r.from)!)} ${edgeLabel(r)} ${displayName(family.people.get(r.to)!)}; ${level}`,
       };
@@ -362,7 +362,7 @@ export function FamilyGraph({
         onNodeClick={(_, node) => onSelect(node.id)}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#dce2d8" gap={22} size={1} />
+        <Background color="var(--border)" gap={22} size={1} />
         <GraphViewport layout={nodes} focusId={selected} enabled={!busy} />
         <GraphControls />
       </ReactFlow>
