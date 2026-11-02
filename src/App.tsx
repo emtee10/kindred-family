@@ -72,6 +72,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
     [selected, setSelected] = useState(initial),
     [view, setView] = useState<View>("family"),
     [wideView, setWideView] = useState(false),
+    [profileCollapsed, setProfileCollapsed] = useState(false),
     [generations, setGenerations] = useState(3),
     [networkDepth, setNetworkDepth] = useState(3),
     [target, setTarget] = useState(
@@ -466,7 +467,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               </div>
             </div>
           )}
-          <div className="explorer-body">
+          <div className={`explorer-body${profileCollapsed ? " profile-collapsed" : ""}`}>
             <section className="graph-section">
               <div className="graph-heading">
                 <span>
@@ -527,7 +528,11 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 </span>
               </div>
             </section>
-            <PersonPanel person={family.people.get(selected)!} />
+            <PersonPanel
+              person={family.people.get(selected)!}
+              collapsed={profileCollapsed}
+              onToggle={() => setProfileCollapsed((current) => !current)}
+            />
           </div>
           <section className="accessible-family">
             <h2>
