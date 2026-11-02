@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ControlButton, Controls, useReactFlow } from "@xyflow/react";
 
-/** Fullscreen the whole graph section so its heading and legend stay available. */
+/** Fullscreen the explorer so the graph and selected-person panel stay together. */
 export function GraphControls() {
   const { fitView } = useReactFlow();
   const button = useRef<HTMLButtonElement>(null);
@@ -11,7 +11,7 @@ export function GraphControls() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const section = button.current?.closest(".graph-section");
+    const section = button.current?.closest(".explorer-body");
     setSupported(Boolean(document.fullscreenEnabled && section?.requestFullscreen));
     let wasFullscreen = false;
     const sync = () => {
@@ -27,7 +27,7 @@ export function GraphControls() {
   }, []);
 
   async function toggleFullscreen() {
-    const section = button.current?.closest<HTMLElement>(".graph-section");
+    const section = button.current?.closest<HTMLElement>(".explorer-body");
     if (!section || pending) return;
     setPending(true);
     setError("");
