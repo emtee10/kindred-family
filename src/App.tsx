@@ -84,15 +84,13 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
   const explore = useCallback((id: string) => {
     setRoot(id);
     setSelected(id);
+    setProfileCollapsed(false);
     setHome(false);
   }, []);
-  const selectNode = useCallback(
-    (id: string) => {
-      setSelected(id);
-      if (view !== "path") setRoot(id);
-    },
-    [view],
-  );
+  const selectNode = useCallback((id: string) => {
+    setSelected(id);
+    setProfileCollapsed(false);
+  }, []);
   const person = family.people.get(root)!;
   const artPeople = [
     family.parents(root)[0],
@@ -481,11 +479,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 </span>
                 <div className="graph-heading-meta">
                   <small>
-                    {view === "network"
-                      ? "Select a person to re-centre the network"
-                      : view === "path"
-                      ? "Select a person to see their profile"
-                      : "Select a person to explore their family"}
+                   Select a person to see their profile
                   </small>
                   <button
                     className="wide-view-toggle"
@@ -508,7 +502,6 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 {view === "network" ? <NetworkGraph family={family} root={root} maxEdges={networkDepth} onSelect={selectNode} /> : <FamilyGraph
                   family={family}
                   root={root}
-                  selected={selected}
                   target={target}
                   view={view}
                   generations={generations}
@@ -534,6 +527,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               person={family.people.get(selected)!}
               collapsed={profileCollapsed}
               onToggle={() => setProfileCollapsed((current) => !current)}
+              onExplore={selected === root ? undefined : () => explore(selected)}
             />
           </div>
           <section className="accessible-family">

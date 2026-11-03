@@ -61,10 +61,11 @@ export function PersonCard({
     </button>
   );
 }
-export function PersonPanel({ person, collapsed, onToggle }: {
+export function PersonPanel({ person, collapsed, onToggle, onExplore }: {
   person: Person;
   collapsed: boolean;
   onToggle: () => void;
+  onExplore?: () => void;
 }) {
   const contentId = useId();
   const name = displayName(person);
@@ -86,6 +87,11 @@ export function PersonPanel({ person, collapsed, onToggle }: {
           <Avatar key={person.id} person={person} large />
           <h2>{name}</h2>
           <p>{lifespan(person)}</p>
+          {onExplore && (
+            <button type="button" className="profile-explore" onClick={onExplore}>
+              Explore from here <Icon name="arrow" size={15} />
+            </button>
+          )}
         </div>
         {person.names.length > 1 && (
           <div className="other-names">

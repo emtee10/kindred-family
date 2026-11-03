@@ -1129,6 +1129,22 @@ select {
   color: var(--muted);
   margin-top: 7px;
 }
+.profile-explore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 17px;
+  padding: 9px 12px;
+  border: 1px solid #355d4b;
+  border-radius: 5px;
+  background: #355d4b;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+}
+.profile-explore:hover { background: #284a3b; }
+.profile-explore:focus-visible { outline: 2px solid #284a3b; outline-offset: 3px; }
 .other-names {
   padding: 0 21px 17px;
   font-size: 11px;
@@ -2047,6 +2063,7 @@ select {
 :root[data-theme="dark"] .profile-toggle { background: var(--subtle); color: var(--text); border-color: var(--border); }
 :root[data-theme="dark"] .profile-toggle:hover { background: #354739; }
 :root[data-theme="dark"] .profile-header { background: linear-gradient(#2b3c30, var(--surface)); }
+:root[data-theme="dark"] .profile-explore { border: #557e59; background: #557e59; }
 :root[data-theme="dark"] .profile-section { border-color: var(--border); }
 :root[data-theme="dark"] .profile-section h3 > span,
 :root[data-theme="dark"] .swap-button { background: #35483a; color: #d0e3c7; }

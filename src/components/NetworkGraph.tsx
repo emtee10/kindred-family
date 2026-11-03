@@ -22,7 +22,7 @@ function NetworkPerson({ id, data }: NodeProps<NetworkNode>) {
     <Handle type="source" position={Position.Right} />
     <Handle type="target" position={Position.Left} />
     <button className={`network-person nodrag nopan ${data.root ? "root" : ""} ${compact ? "compact" : ""}`}
-      aria-label={`Explore ${data.name}${data.root ? ", network centre" : ""}`}
+      aria-label={`View profile of ${data.name}${data.root ? ", network centre" : ""}`}
       title={`${data.name}${data.dates ? ` · ${data.dates}` : ""}`}
       onClick={(event) => { event.stopPropagation(); data.onSelect(id); }}>
       <strong style={compact ? { fontSize: Math.min(12 / data.zoom, 32), lineHeight: 1 } : undefined}>

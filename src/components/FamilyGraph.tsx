@@ -48,7 +48,7 @@ function PersonNode({ data }: NodeProps<FamilyNode>) {
           event.stopPropagation();
           data.onSelect(data.person.id);
         }}
-        aria-label={`Explore ${displayName(data.person)}`}
+        aria-label={`View profile of ${displayName(data.person)}`}
       >
         <Avatar person={data.person} />
         <span>
@@ -75,7 +75,6 @@ const nodeTypes = { person: PersonNode };
 export function FamilyGraph({
   family,
   root,
-  selected,
   view,
   generations,
   target,
@@ -83,7 +82,6 @@ export function FamilyGraph({
 }: {
   family: Genealogy;
   root: string;
-  selected: string;
   view: Exclude<View, "network">;
   generations: number;
   target: string;
@@ -282,7 +280,7 @@ export function FamilyGraph({
         person: family.people.get(id)!,
         root: id === root,
         horizontal: view === "path",
-        caption: id === root ? "Selected person" : captions.get(id),
+        caption: id === root ? "Starting person" : captions.get(id),
         onSelect,
       },
     }));
@@ -363,7 +361,7 @@ export function FamilyGraph({
         proOptions={{ hideAttribution: true }}
       >
         <Background color="var(--border)" gap={22} size={1} />
-        <GraphViewport layout={nodes} focusId={selected} enabled={!busy} />
+        <GraphViewport layout={nodes} focusId={root} enabled={!busy} />
         <GraphControls />
       </ReactFlow>
       {busy && <div className="graph-message graph-loading" role="status">Arranging the family…</div>}
