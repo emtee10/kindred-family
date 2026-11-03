@@ -13,6 +13,7 @@ import {
 } from "./components/PersonUI";
 import { PersonSearch } from "./components/PersonSearch";
 import { Icon } from "./components/Icons";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 const FamilyGraph = lazy(() =>
   import("./components/FamilyGraph").then((module) => ({
@@ -71,6 +72,8 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
     [root, setRoot] = useState(initial),
     [selected, setSelected] = useState(initial),
     [view, setView] = useState<View>("family"),
+    [wideView, setWideView] = useState(false),
+    [profileCollapsed, setProfileCollapsed] = useState(false),
     [generations, setGenerations] = useState(3),
     [networkDepth, setNetworkDepth] = useState(3),
     [target, setTarget] = useState(
@@ -155,6 +158,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               Fictional demo
             </span>
           )}
+          <ThemeToggle />
         </div>
       </header>
       {home ? (
@@ -325,7 +329,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
           </div>
         </main>
       ) : (
-        <main className="explorer">
+        <main className={`explorer${wideView ? " explorer-wide" : ""}`}>
           <div className="explorer-heading">
             <div>
               <button className="back-link" onClick={() => setHome(true)}>
@@ -465,7 +469,7 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
               </div>
             </div>
           )}
-          <div className="explorer-body">
+          <div className={`explorer-body${profileCollapsed ? " profile-collapsed" : ""}`}>
             <section className="graph-section">
               <div className="graph-heading">
                 <span>
@@ -475,13 +479,24 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                   />
                   {views.find((v) => v.id === view)!.name}
                 </span>
-                <small>
-                  {view === "network"
-                    ? "Select a person to re-centre the network"
-                    : view === "path"
-                    ? "Select a person to see their profile"
-                    : "Select a person to explore their family"}
-                </small>
+                <div className="graph-heading-meta">
+                  <small>
+                    {view === "network"
+                      ? "Select a person to re-centre the network"
+                      : view === "path"
+                      ? "Select a person to see their profile"
+                      : "Select a person to explore their family"}
+                  </small>
+                  <button
+                    className="wide-view-toggle"
+                    type="button"
+                    aria-pressed={wideView}
+                    onClick={() => setWideView((current) => !current)}
+                  >
+                    <span>Wide canvas</span>
+                    <span className="wide-view-switch" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <Suspense
                 fallback={
@@ -515,7 +530,11 @@ export default function App({ family, config }: { family: Genealogy; config: Arc
                 </span>
               </div>
             </section>
-            <PersonPanel person={family.people.get(selected)!} />
+            <PersonPanel
+              person={family.people.get(selected)!}
+              collapsed={profileCollapsed}
+              onToggle={() => setProfileCollapsed((current) => !current)}
+            />
           </div>
           <section className="accessible-family">
             <h2>

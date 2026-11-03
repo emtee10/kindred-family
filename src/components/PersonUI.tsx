@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   displayName,
   initials,
@@ -61,112 +61,129 @@ export function PersonCard({
     </button>
   );
 }
-export function PersonPanel({ person }: { person: Person }) {
+export function PersonPanel({ person, collapsed, onToggle }: {
+  person: Person;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const contentId = useId();
   const name = displayName(person);
   return (
-    <aside className="person-panel" aria-label={`Profile of ${name}`}>
-      <div className="profile-header">
-        <span className="eyebrow">A LIFE IN THE FAMILY</span>
-        <Avatar key={person.id} person={person} large />
-        <h2>{name}</h2>
-        <p>{lifespan(person)}</p>
-      </div>
-      {person.names.length > 1 && (
-        <div className="other-names">
-          {person.names
-            .filter(
-              (n) => [n.given, n.surname].filter(Boolean).join(" ") !== name,
-            )
-            .map((n, i) => (
-              <p key={i}>
-                <span>{n.type} name</span>
-                {[n.given, n.surname].filter(Boolean).join(" ")}
-              </p>
-            ))}
+    <aside className={`person-panel${collapsed ? " is-collapsed" : ""}`} aria-label={`Profile of ${name}`}>
+      <button
+        type="button"
+        className="profile-toggle"
+        aria-expanded={!collapsed}
+        aria-controls={contentId}
+        aria-label={`${collapsed ? "Expand" : "Collapse"} Selected Person`}
+        onClick={onToggle}
+      >
+        <span className="eyebrow">SELECTED PERSON</span>
+        <Icon name="chevron" size={18} />
+      </button>
+      <div id={contentId} className="profile-content" hidden={collapsed}>
+        <div className="profile-header">
+          <Avatar key={person.id} person={person} large />
+          <h2>{name}</h2>
+          <p>{lifespan(person)}</p>
         </div>
-      )}
-      <section className="profile-section">
-        <h3>Life details</h3>
-        {(["birth", "death"] as const).map((type) => {
-          const fact = person[type];
-          if (type === "death" && !fact) return null;
-          return (
-            <div className="life-fact" key={type}>
-              <Icon name="calendar" size={17} />
-              <div>
-                <small>{type === "birth" ? "Born" : "Died"}</small>
-                <p>
-                  {formatDate(fact?.date)}{" "}
-                  <ConfidenceBadge value={fact?.date?.confidence} />
+        {person.names.length > 1 && (
+          <div className="other-names">
+            {person.names
+              .filter(
+                (n) => [n.given, n.surname].filter(Boolean).join(" ") !== name,
+              )
+              .map((n, i) => (
+                <p key={i}>
+                  <span>{n.type} name</span>
+                  {[n.given, n.surname].filter(Boolean).join(" ")}
                 </p>
-                {fact?.place && (
-                  <p className="place">
-                    {fact.place.value}{" "}
-                    <ConfidenceBadge value={fact.place.confidence} />
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </section>
-      <section className="profile-section">
-        <h3>
-          Life events <span>{person.events.length}</span>
-        </h3>
-        {person.events.length ? (
-          <ol className="timeline">
-            {person.events.map((event, i) => (
-              <li key={i}>
-                <small>
-                  {event.date ? formatDate(event.date) : "Date not recorded"}{" "}
-                  <ConfidenceBadge value={event.date?.confidence} />
-                </small>
-                <strong>{event.type}</strong>
-                {event.label && <p>{event.label}</p>}
-                {event.place && (
-                  <p>
-                    {event.place.value}{" "}
-                    <ConfidenceBadge value={event.place.confidence} />
-                  </p>
-                )}
-                <ConfidenceBadge value={event.confidence} />
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="empty-copy">There are no life events recorded yet.</p>
-        )}
-      </section>
-      {person.photos.length > 0 && (
-        <section className="profile-section">
-          <h3>Portraits</h3>
-          <div className="portraits">
-            {person.photos.map((photo) => (
-              <figure key={photo.file}>
-                <img
-                  src={`/api/photos/${photo.file.split("/").map(encodeURIComponent).join("/")}`}
-                  alt={`${name}${photo.label ? `, ${photo.label}` : ""}`}
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-                <figcaption>
-                  {photo.label ?? "Portrait"}
-                  {photo.date && ` · ${formatDate(photo.date)}`}
-                </figcaption>
-              </figure>
-            ))}
+              ))}
           </div>
+        )}
+        <section className="profile-section">
+          <h3>Life details</h3>
+          {(["birth", "death"] as const).map((type) => {
+            const fact = person[type];
+            if (type === "death" && !fact) return null;
+            return (
+              <div className="life-fact" key={type}>
+                <Icon name="calendar" size={17} />
+                <div>
+                  <small>{type === "birth" ? "Born" : "Died"}</small>
+                  <p>
+                    {formatDate(fact?.date)}{" "}
+                    <ConfidenceBadge value={fact?.date?.confidence} />
+                  </p>
+                  {fact?.place && (
+                    <p className="place">
+                      {fact.place.value}{" "}
+                      <ConfidenceBadge value={fact.place.confidence} />
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </section>
-      )}
-      <div className="record-note">
-        <Icon name="book" size={16} />
-        <span>
-          Every detail is a piece of the story.
-          <br />
-          Unrecorded facts remain unknown.
-        </span>
+        <section className="profile-section">
+          <h3>
+            Life events <span>{person.events.length}</span>
+          </h3>
+          {person.events.length ? (
+            <ol className="timeline">
+              {person.events.map((event, i) => (
+                <li key={i}>
+                  <small>
+                    {event.date ? formatDate(event.date) : "Date not recorded"}{" "}
+                    <ConfidenceBadge value={event.date?.confidence} />
+                  </small>
+                  <strong>{event.type}</strong>
+                  {event.label && <p>{event.label}</p>}
+                  {event.place && (
+                    <p>
+                      {event.place.value}{" "}
+                      <ConfidenceBadge value={event.place.confidence} />
+                    </p>
+                  )}
+                  <ConfidenceBadge value={event.confidence} />
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="empty-copy">There are no life events recorded yet.</p>
+          )}
+        </section>
+        {person.photos.length > 0 && (
+          <section className="profile-section">
+            <h3>Portraits</h3>
+            <div className="portraits">
+              {person.photos.map((photo) => (
+                <figure key={photo.file}>
+                  <img
+                    src={`/api/photos/${photo.file.split("/").map(encodeURIComponent).join("/")}`}
+                    alt={`${name}${photo.label ? `, ${photo.label}` : ""}`}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <figcaption>
+                    {photo.label ?? "Portrait"}
+                    {photo.date && ` · ${formatDate(photo.date)}`}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
+        <div className="record-note">
+          <Icon name="book" size={16} />
+          <span>
+            Every detail is a piece of the story.
+            <br />
+            Unrecorded facts remain unknown.
+          </span>
+        </div>
       </div>
     </aside>
   );
